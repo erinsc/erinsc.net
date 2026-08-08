@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Stuff Central</title>
+	<script src="<?= function_url('script.js') ?>"></script>
+	<link rel="stylesheet" href="app/style.css">
+	<link rel="icon" type="image/x-icon" href="/media/images/favicon.png">
+</head>
+<background></background>
+<body>
+	<header>
+		<div class="nameplate">
+			<img id="favicon" src="/media/images/favicon.png">
+			<p>Stuff Central</p>
+		</div>
+		<div class="locator">
+			<?= locator(); ?>
+		</div>
+	</header>
+	<padding></padding>
+	<content id="content">
+		<?php page_content(); ?>
+	</content>
+	<padding></padding>
+	<footer>
+		<input class="dark-mode-toggle" type="checkbox" role="switch" onclick="toggleTheme()"></input>
+		<div class="copyright">
+			&#xA9; <?php echo date('Y'); ?> Stuff Central <?= VERSION ?>
+		</div>
+	</footer>
+</body>
