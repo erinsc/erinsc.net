@@ -2,7 +2,6 @@
 
 define('VERSION', "V2.0");
 define('ROOT_DIR', '');
-define('PRETTY', '');
 define('PAGES_TODO', [
     'recipes/macncheese',
     'recipes/pizza',
@@ -12,43 +11,46 @@ define('PAGES_TODO', [
     'recipes/oreoicecream',
 ]);
 
+function current_page(): string {
+    $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+    $path = trim($path, '/');
+    $path = str_replace(['..', "\0"], '', $path); // prevent directory traversal
+    return $path === '' ? 'home' : $path;
+}
+
 function image_url(string $filepath): string {
-    $path = ROOT_DIR . '/media/images/' . $filepath;
-    return $path;
+    return ROOT_DIR . '/media/images/' . $filepath;
 }
 function function_url(string $filepath): string {
-    $path = ROOT_DIR . '/app/' . $filepath;
-    return $path;
+    return ROOT_DIR . '/app/' . $filepath;
 }
 function page_url(string $filepath): string {
-    $path = ROOT_DIR . '/' . PRETTY . $filepath;
-    return $path;
+    return ROOT_DIR . '/' . $filepath;
 }
 
 function locator(): string {
-    global $hierarchy;
-
-    $separator = " 〉 ";
-    $page = $_GET['page'] ?? '';
-    $page = explode('/', $page);
+    $separator = " 〉 ";
+    $page = explode('/', current_page());
     if ($page[0] != 'home') {
         array_unshift($page, 'home');
     }
     $end = array_pop($page);
 
     $path = "";
+    $accum = [];
     foreach ($page as $url) {
-        $path = $path . $separator . '<a href="' . page_url($url) . '">' . $url . '</a>';
+        $accum[] = $url === 'home' ? 'home' : $url;
+        $href = $url === 'home' ? 'home' : implode('/', $accum);
+        $path .= $separator . '<a href="' . page_url($href) . '">' . $url . '</a>';
     }
 
-    $path = $path . $separator . "<span class='endpoint'>" . $end . "</span>";
+    $path .= $separator . "<span class='endpoint'>" . $end . "</span>";
 
     return $path;
 }
-function page_content() {
-    global $hierarchy;
 
-    $page = $_GET['page'] ?? '';
+function page_content() {
+    $page = current_page();
     $path = 'content/' . $page . '.phtml';
 
     if (! file_exists($path)) {
