@@ -2,7 +2,7 @@
 
 define('VERSION', "V2.0");
 define('ROOT_DIR', '');
-define('PRETTY', '?page=');
+define('PRETTY', '');
 define('PAGES_TODO', [
     'recipes/macncheese',
     'recipes/pizza',
