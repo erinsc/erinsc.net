@@ -14,7 +14,7 @@ define('PAGES_TODO', [
 function current_page(): string {
     $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
     $path = trim($path, '/');
-    $path = str_replace(['..', "\0"], '', $path); // prevent directory traversal
+    $path = str_replace(['..', "\0"], '', $path);
     return $path === '' ? 'home' : $path;
 }
 
@@ -29,7 +29,7 @@ function page_url(string $filepath): string {
 }
 
 function locator(): string {
-    $separator = " 〉 ";
+    $separator = " > ";
     $page = explode('/', current_page());
     if ($page[0] != 'home') {
         array_unshift($page, 'home');
@@ -37,15 +37,15 @@ function locator(): string {
     $end = array_pop($page);
 
     $path = "";
-    $accum = [];
+    $accum = "";
     foreach ($page as $url) {
-        $accum[] = $url === 'home' ? 'home' : $url;
-        $href = $url === 'home' ? 'home' : implode('/', $accum);
+        if ($url !== 'home') {
+            $accum .= $url . '/';
+        }
+        $href = $accum;
         $path .= $separator . '<a href="' . page_url($href) . '">' . $url . '</a>';
     }
-
     $path .= $separator . "<span class='endpoint'>" . $end . "</span>";
-
     return $path;
 }
 

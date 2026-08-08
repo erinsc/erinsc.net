@@ -1,4 +1,5 @@
 <?php
+// Testing file for running with php -S localhost:8000 router.php
 
 $uri = trim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), '/');
 
