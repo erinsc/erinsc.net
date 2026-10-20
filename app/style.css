@@ -170,6 +170,13 @@ html[theme-mode="dark"] .dark-mode-toggle::before {
         padding-bottom: 20px;
     }
 }
+#gallery {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 10px;
+}
+
 @media (max-width: 768px) {
     .paragraph .cover {
         float: none;
@@ -183,6 +190,20 @@ html[theme-mode="dark"] .dark-mode-toggle::before {
 
 /* Right now only for art.html */
 
+.hidden {
+    display: none;
+}
+
+#gallery .labeled {
+    max-width: min(400px, 100%);
+}
+#gallery .labeled p {
+    margin-left: 10px;
+}
+#gallery .labeled img {
+    max-width: 100%;
+    margin: 0;
+}
 button {
     font-size: 20px;
     padding: 5px 5px;
@@ -196,6 +217,18 @@ button {
 button:hover {
     color: var(--color-hl2);
 }
+button[aria-pressed="true"] {
+    background: var(--color-hl1);
+    color: var(--color-bg);
+}
+button[aria-pressed="true"]:hover {
+    background: var(--color-hl2);
+    color: var(--color-bg);
+}
+.buttons {
+    margin-top: 10px;
+}
+
 #focused-img {
     z-index: 4;
     position: fixed;
