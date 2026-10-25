@@ -54,16 +54,36 @@ function filterImages() {
 
 const page = document.getElementById('content');
 const focused_img = document.getElementById('focused-img');
+let moved = false;
 
-page.addEventListener('click', (e) => {
+document.getElementById('content').addEventListener('click', (e) => {
     const img = e.target.closest('img');
-    if (!img) {
-        overlay.classList.remove('active');
-        focused_img.classList.remove('focused');
-        return;
-    }
-    focused_img.src = img.src;
-
+    if (!img) return;
+    focused_img.src = img.currentSrc || img.src;
     overlay.classList.add('active');
-    focused_img.classList.add('focused');
 });
+
+overlay.addEventListener('click', (e) => {
+    if (moved) { moved = false; return; }
+    if (e.target === focused_img) {
+        overlay.classList.toggle('zoomed');
+        // re-center the scroll position
+        overlay.scrollLeft = (overlay.scrollWidth - overlay.clientWidth) / 2;
+        overlay.scrollTop = (overlay.scrollHeight - overlay.clientHeight) / 2;
+    } else {
+        overlay.classList.remove('active', 'zoomed');
+    }
+});
+
+let drag = null;
+overlay.addEventListener('pointerdown', (e) => {
+    if (e.target === focused_img && overlay.classList.contains('zoomed'))
+        drag = { x: e.clientX, y: e.clientY, l: overlay.scrollLeft, t: overlay.scrollTop };
+});
+overlay.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    moved = true;
+    overlay.scrollLeft = drag.l - (e.clientX - drag.x);
+    overlay.scrollTop = drag.t - (e.clientY - drag.y);
+});
+addEventListener('pointerup', () => drag = null);

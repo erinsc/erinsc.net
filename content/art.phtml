@@ -112,6 +112,17 @@ $images = [
     ['file' => 'art/sketch4_13.png', 'tags' => ['sketch']],
     ['file' => 'art/sketch4_14.png', 'tags' => ['sketch', 'collage']],
     ['file' => 'art/sketch4_15.png', 'tags' => ['sketch']],
+    ['file' => 'art/sketch4_16.png', 'tags' => ['sketch']],
+
+    ['file' => 'art/color_17.png', 'tags' => ['color']],
+    ['file' => 'art/color_18.png', 'tags' => ['color']],
+    ['file' => 'art/color_19.png', 'tags' => ['color']],
+
+    ['file' => 'art/sketch4_17.png', 'tags' => ['sketch']],
+    ['file' => 'art/sketch4_18.png', 'tags' => ['sketch']],
+    ['file' => 'art/sketch4_19.png', 'tags' => ['sketch']],
+    ['file' => 'art/sketch4_20.png', 'tags' => ['sketch']],
+    ['file' => 'art/sketch4_21.png', 'tags' => ['sketch']],
 ];
 
 $images = array_reverse($images);
@@ -134,8 +145,9 @@ sort($tags);
         <?php endforeach; ?>
     </div>
 
-    <img id="focused-img"></img>
-    <div id="overlay"></div>
+    <div id="overlay">
+    <img draggable="false" id="focused-img" alt="">
+</div>
 </div>
 <div class="paragraph" id="gallery">
     <?php foreach ($images as $img): ?>

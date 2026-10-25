@@ -229,36 +229,32 @@ button[aria-pressed="true"]:hover {
     margin-top: 10px;
 }
 
-#focused-img {
-    z-index: 4;
-    position: fixed;
-    object-fit: contain;
-    top: 10vh;
-    left: 10vw;
-    height: 80vh;
-    width: 80vw;
-    max-width: none;
-    opacity: 0.0;
-    transition: opacity 0.5s ease;
-    pointer-events: none;
-    border-radius: 10px;
-}
-#focused-img.focused {
-    opacity: 1.0;
-}
 #overlay {
-    z-index: 3;
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0);
-    transition: background 0.5s ease;
-    pointer-events: none;
+    inset: 0;
+    z-index: 3;
+    display: flex;
+    overflow: auto;
+    background: rgba(0, 0, 0, 0.85);
+
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.5s, visibility 0s 0.5s;
+}
+#overlay.active {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.5s;
 }
 
-#overlay.active {
-    background: rgba(0, 0, 0, 0.5);
-    pointer-events: auto;
+#focused-img {
+    margin: auto;
+    max-width: 80vw;
+    max-height: 80vh;
+    border-radius: 10px;
+    cursor: zoom-in;
+}
+#overlay.zoomed #focused-img {
+    zoom: 2.5;
+    cursor: zoom-out;
 }
