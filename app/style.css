@@ -118,6 +118,8 @@ footer {
     position: relative;
     cursor: pointer;
     transition: background 0.3s ease;
+    padding: 0;
+    margin-bottom: 0;
 }
 .dark-mode-toggle::before {
     content: "";
@@ -170,11 +172,31 @@ html[theme-mode="dark"] .dark-mode-toggle::before {
         padding-bottom: 20px;
     }
 }
-#gallery {
+code {
+  background-color: var(--accent, var(--color-side));
+  border-radius: 3px;
+  font-family: "Courier New", monospace;
+  padding: 0 3px;
+}
+
+.gallery {
     display: flex;
     flex-wrap: wrap;
     align-items: flex-start;
     gap: 10px;
+
+    .labeled {
+        max-width: min(400px, 100%);
+        margin-bottom: -5px;
+
+        p {
+            margin-left: 10px;
+        }
+        img {
+            max-width: 100%;
+            margin: 0;
+        }
+    }
 }
 
 @media (max-width: 768px) {
@@ -187,23 +209,18 @@ html[theme-mode="dark"] .dark-mode-toggle::before {
         font-size: 40px;
     }
 }
-
-/* Right now only for art.html */
-
-.hidden {
-    display: none;
+input {
+    font-family: 'Courier New', monospace;
+    font-size: 20px;
+    padding: 3px 5px;
+    width: 400px;
+    border: 5px solid var(--color-border);
+    border-radius: 10px;
+    background: var(--color-bg);
+    color: var(--color-hl1);
+    margin-bottom: 5px;
 }
 
-#gallery .labeled {
-    max-width: min(400px, 100%);
-}
-#gallery .labeled p {
-    margin-left: 10px;
-}
-#gallery .labeled img {
-    max-width: 100%;
-    margin: 0;
-}
 button {
     font-size: 20px;
     padding: 5px 5px;
@@ -213,6 +230,7 @@ button {
     background: var(--color-bg);
     color: var(--color-hl1);
     cursor: pointer;
+    margin-bottom: 5px;
 }
 button:hover {
     color: var(--color-hl2);
@@ -225,8 +243,25 @@ button[aria-pressed="true"]:hover {
     background: var(--color-hl2);
     color: var(--color-bg);
 }
-.buttons {
-    margin-top: 10px;
+
+/* Right now only in lambda-calculus.phtml */
+
+.lc-sim {
+    display: flex;
+    flex-direction: column;
+    
+    canvas {
+        background: var(--color-bg);
+        color: var(--color-hl1);
+        border: 5px solid var(--color-border);
+        border-radius: 10px;
+    }
+}
+
+/* Right now only for art.phtml */
+
+.hidden {
+    display: none;
 }
 
 #overlay {
