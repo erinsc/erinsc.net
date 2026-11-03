@@ -149,7 +149,7 @@ sort($tags);
     <img draggable="false" id="focused-img" alt="">
 </div>
 </div>
-<div class="paragraph" id="gallery">
+<div class="paragraph gallery">
     <?php foreach ($images as $img): ?>
         <div class="labeled" tags="<?= implode(' ', $img['tags'])?>">
         <img src="<?= image_url($img['file']) ?>"
@@ -166,4 +166,4 @@ sort($tags);
         </div>
     <?php endforeach; ?>
 </div>
-<script src="<?= function_url('gallery.js') ?>"></script>
+<script src="<?= function_url('js/gallery.js') ?>"></script>

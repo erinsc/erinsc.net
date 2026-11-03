@@ -2,7 +2,7 @@ const orderBtn = document.getElementById('button-order');
 const modeBtn = document.getElementById('button-mode');
 const tagBtns = [...document.querySelectorAll('.button-tag')];
 
-const gallery = document.getElementById('gallery');
+const gallery = document.querySelector('.gallery');
 const items = [...gallery.querySelectorAll('.labeled')];
 
 
@@ -44,8 +44,6 @@ function filterImages() {
         } else {
             show = selected.some(t => tags.includes(t));
         }
-
-        console.log(tags);
 
         item.classList.toggle('hidden', !show);
     })

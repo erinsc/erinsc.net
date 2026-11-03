@@ -8,7 +8,7 @@ if (saved) {
 
 function toggleTheme() {
     const html = document.documentElement;
-    const next = html.getAttribute('theme-mode') === 'dark' ?     'light' : 'dark';
+    const next = html.getAttribute('theme-mode') === 'dark' ? 'light' : 'dark';
     html.setAttribute('theme-mode', next);
     localStorage.setItem('theme', next);
 }

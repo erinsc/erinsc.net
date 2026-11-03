@@ -3,12 +3,12 @@
 define('VERSION', "V2.0");
 define('ROOT_DIR', '');
 define('PAGES_TODO', [
-    'recipes/macncheese',
     'recipes/pizza',
     'recipes/tiramisu',
     'recipes/carrotcake',
     'recipes/waspnests',
     'recipes/oreoicecream',
+    'non-fiction',
 ]);
 
 function current_page(): string {
