@@ -90,7 +90,7 @@ padding {
 footer {
     z-index: 2;
     margin: auto 0px 10px 10px;
-    padding-top: 5px;
+    padding-top: 10px;
     border-top: 5px solid var(--color-border);
     background-color: var(--color-bg);
 
