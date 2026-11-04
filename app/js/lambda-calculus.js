@@ -1,6 +1,6 @@
 "use strict";
-const RADIUS = 32;
-const EDGE = 128;
+const RADIUS = 25;
+const EDGE = 50;
 const SPEED = 1 / 32;
 function expect(value, msg = "unexpected null type") {
     if (value == null)
@@ -63,10 +63,11 @@ class Term {
         this.pos.subAssign(this.pos.sub(pos).multAssign(SPEED));
     }
     // Returns a list of max widths from the left and right of this Term for every height
+    // Includes itself, which will always be [0, 0]
     setOffset() {
-        return [];
+        return [[0, 0]];
     }
-    drawTerm(ctx, style) {
+    drawTerm(parent, ctx, style) {
         ctx.lineWidth = 6;
         ctx.beginPath();
         ctx.arc(this.pos.x, this.pos.y, RADIUS, 0, Math.PI * 2);
@@ -81,10 +82,10 @@ class Term {
 }
 // Represents an abstraction Term
 class AbsTerm extends Term {
-    constructor() {
+    constructor(shr, body) {
         super();
-        this.var = null;
-        this.body = null;
+        this.var = shr;
+        this.body = body;
     }
     step(pos) {
         super.step(pos);
@@ -99,53 +100,52 @@ class AbsTerm extends Term {
     // Body is shifted to the right by EDGE
     // Var is shifted all the way below the body
     setOffset() {
-        var widths = [];
-        const right = this.body?.setOffset() ?? [];
-        if (this.var)
-            this.var.visited = false;
-        const left = this.var?.setOffset() ?? [];
-        for (var i = 0; i < right.length; i++) {
-            const l = right[i][0] + EDGE;
-            const r = right[i][1] + EDGE;
-            widths.push([l, r]);
+        var widths = [[0, 0]];
+        if (this.body) {
+            const right = this.body.setOffset();
+            var shift = -Infinity;
+            for (var i = 0; i < right.length; i++) {
+                shift = Math.max(shift, -right[i][0]);
+            }
+            shift += EDGE;
+            for (var i = 0; i < right.length; i++) {
+                const l = right[i][0] + shift;
+                const r = right[i][1] + shift;
+                widths.push([l, r]);
+            }
+            this.body.offset.set(shift, EDGE);
         }
         widths.push([0, 0]);
-        for (var i = 0; i < left.length; i++) {
-            widths.push(left[i]);
-        }
-        // Set offsets of kids
-        if (this.body) {
-            this.body.offset.set(EDGE, EDGE);
-            widths.push([0, EDGE]);
-        }
-        if (this.var)
+        if (this.var) {
             this.var.offset.set(0, widths.length * EDGE);
+            this.var.visited = false;
+            const left = this.var.setOffset();
+            for (var i = 0; i < left.length; i++) {
+                widths.push(left[i]);
+            }
+        }
+        console.log("ABS", widths);
         return widths;
     }
-    drawTerm(ctx, style) {
+    drawTerm(parent, ctx, style) {
         ctx.strokeStyle = style.border;
         ctx.lineWidth = 6;
-        if (this.body) {
+        if (parent) {
+            const start = this.pos.add(new Vec2(0, -RADIUS));
             ctx.beginPath();
-            ctx.moveTo(this.pos.x, this.pos.y);
-            ctx.lineTo(this.body.pos.x, this.body.pos.y);
+            ctx.moveTo(start.x, start.y);
+            ctx.lineTo(parent.pos.x, parent.pos.y);
             ctx.stroke();
         }
+        this.body?.drawTerm(this, ctx, style);
         if (this.var) {
-            ctx.beginPath();
-            ctx.moveTo(this.pos.x, this.pos.y);
-            ctx.lineTo(this.var.pos.x, this.var.pos.y);
-            ctx.stroke();
+            this.var.visited = false;
+            this.var.drawTerm(this, ctx, style);
         }
-        super.drawTerm(ctx, style);
+        super.drawTerm(this, ctx, style);
         ctx.strokeStyle = style.color;
         ctx.lineWidth = 3;
         ctx.strokeText("λ", this.pos.x, this.pos.y);
-        this.body?.drawTerm(ctx, style);
-        if (this.var) {
-            this.var.visited = false;
-            this.var.drawTerm(ctx, style);
-        }
     }
     reduce(pos) {
         const body = this.body?.reduce(pos) || null;
@@ -158,10 +158,10 @@ class AbsTerm extends Term {
 }
 // Represents an application
 class AppTerm extends Term {
-    constructor() {
+    constructor(func, arg) {
         super();
-        this.func = null;
-        this.arg = null;
+        this.func = func;
+        this.arg = arg;
     }
     step(pos) {
         super.step(pos);
@@ -177,13 +177,16 @@ class AppTerm extends Term {
         // Find the widest distance between the trees, at equal levels
         var shift = 0;
         for (var i = 0; i < min_height; i++) {
-            const current = left[i][1] + right[i][0];
+            const current = left[i][1] - right[i][0];
             shift = Math.max(shift, current);
         }
         // Includes padding and shift from center
-        shift = shift / 2 + EDGE;
+        shift = shift / 2;
+        if (min_height > 0) {
+            shift += EDGE;
+        }
         // build width graph, first from both sides...
-        var widths = [];
+        var widths = [[0, 0]];
         for (var i = 0; i < min_height; i++) {
             const l = left[i][0] - shift;
             const r = right[i][1] + shift;
@@ -200,37 +203,30 @@ class AppTerm extends Term {
             const r = right[i][1] + shift;
             widths.push([l, r]);
         }
-        // NOTE: this is wrong. if either branch is not present, the width should be 0.
-        // However its not a valid state for a branch to be missing in the first place, so it stays.
-        widths.unshift([-shift, shift]);
         // Set offsets of kids
         if (this.func)
             this.func.offset.set(-shift, EDGE);
         if (this.arg)
             this.arg.offset.set(shift, EDGE);
+        console.log("APP", widths);
         return widths;
     }
-    drawTerm(ctx, style) {
+    drawTerm(parent, ctx, style) {
         ctx.strokeStyle = style.border;
         ctx.lineWidth = 6;
-        if (this.func) {
+        if (parent) {
+            const start = this.pos.add(new Vec2(0, -RADIUS));
             ctx.beginPath();
-            ctx.moveTo(this.pos.x, this.pos.y);
-            ctx.lineTo(this.func.pos.x, this.func.pos.y);
+            ctx.moveTo(start.x, start.y);
+            ctx.lineTo(parent.pos.x, parent.pos.y);
             ctx.stroke();
         }
-        if (this.arg) {
-            ctx.beginPath();
-            ctx.moveTo(this.pos.x, this.pos.y);
-            ctx.lineTo(this.arg.pos.x, this.arg.pos.y);
-            ctx.stroke();
-        }
-        super.drawTerm(ctx, style);
+        this.func?.drawTerm(this, ctx, style);
+        this.arg?.drawTerm(this, ctx, style);
+        super.drawTerm(this, ctx, style);
         ctx.strokeStyle = style.color;
         ctx.lineWidth = 3;
         ctx.strokeText("O", this.pos.x, this.pos.y);
-        this.func?.drawTerm(ctx, style);
-        this.arg?.drawTerm(ctx, style);
     }
     reduce(pos) {
         if (pos.sub(this.pos).lengthSqr() > RADIUS * RADIUS) {
@@ -275,23 +271,28 @@ class ShareTerm extends Term {
     }
     setOffset() {
         if (this.visited)
-            return [];
+            return [[0, 0]];
         this.visited = true;
         if (this.body === null) {
-            return [];
+            return [[0, 0]];
         }
         var widths = this.body.setOffset();
         widths.unshift([0, 0]);
         this.body.offset.set(0, EDGE);
+        console.log("SHR", widths);
         return widths;
     }
-    drawTerm(ctx, style) {
+    drawTerm(parent, ctx, style) {
         ctx.strokeStyle = style.border;
         ctx.lineWidth = 6;
-        if (this.body) {
+        if (parent) {
+            const start = this.pos;
+            const end = parent.pos;
+            const mid = new Vec2(end.x, start.y);
             ctx.beginPath();
-            ctx.moveTo(this.pos.x, this.pos.y);
-            ctx.lineTo(this.body.pos.x, this.body.pos.y);
+            ctx.moveTo(start.x, start.y);
+            ctx.lineTo(mid.x, mid.y);
+            ctx.lineTo(end.x, end.y);
             ctx.stroke();
         }
         if (this.visited) {
@@ -308,7 +309,7 @@ class ShareTerm extends Term {
         ctx.strokeStyle = style.color;
         ctx.lineWidth = 3;
         ctx.strokeText(this.label, this.pos.x, this.pos.y);
-        this.body?.drawTerm(ctx, style);
+        this.body?.drawTerm(this, ctx, style);
     }
     // NOTE: This can get called multiple times in a single cycle, so reduction checking isnt O(n)
     // im not sure how to fix it. options include:
@@ -343,7 +344,7 @@ class Graph {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         ctx.restore();
-        this.root?.drawTerm(ctx, styles);
+        this.root?.drawTerm(null, ctx, styles);
     }
     step() {
         this.root?.step(new Vec2(0, 0));
@@ -354,10 +355,12 @@ class Graph {
             this.root = root;
         return (root instanceof Term);
     }
+    setOffset() {
+        this.root?.setOffset();
+    }
     frame() {
         this.draw();
         this.step();
-        //console.log("Frame finished");
         requestAnimationFrame(() => this.frame());
     }
     toWorld(e) {
@@ -369,7 +372,93 @@ class Graph {
         return new Vec2(x, y);
     }
 }
-function bind(graph) {
+class Parser {
+    constructor() {
+        this.pos = 0;
+        this.tokens = [];
+        this.scopes = {};
+    }
+    parse(text) {
+        this.tokens = text.match(/[\\λ.()]|[A-Za-z']+/g) || [];
+        this.pos = 0;
+        console.log("Parse start");
+        return this.parseApp();
+    }
+    isVar(t) {
+        return t !== undefined && /^[A-Za-z']+$/.test(t);
+    }
+    isLambda(t) {
+        return t === "\\" || t === "λ";
+    }
+    pop() {
+        const token = this.tokens[this.pos];
+        this.pos++;
+        return token;
+    }
+    // Parses a chain of applications, including only one Term
+    parseApp() {
+        var left = null;
+        var right = null;
+        while (true) {
+            const token = this.tokens[this.pos];
+            if (this.isVar(token)) {
+                right = this.parseVar();
+            }
+            else if (this.isLambda(token)) {
+                this.pop(); // Spend the lambda
+                right = this.parseAbs();
+            }
+            else if (token == '(') {
+                this.pop(); // Spend the opening bracket
+                right = this.parseApp();
+                this.pop(); // Spend the closing bracket
+            }
+            else if (token == ')' || token == undefined) {
+                return expect(left);
+            }
+            else {
+                throw new Error("Application contains something wrong: " + token);
+            }
+            if (left) {
+                left = new AppTerm(left, right);
+            }
+            else {
+                left = right;
+            }
+        }
+    }
+    // Parses an abstraction. can parse the shortform of it too
+    parseAbs() {
+        const token = this.pop();
+        if (this.isVar(token)) {
+            // In case the variable name already exists, pop out temporarily
+            const prev = this.scopes[token];
+            const v = new ShareTerm(token);
+            this.scopes[token] = v;
+            // Recursive call
+            const body = this.parseAbs();
+            const term = new AbsTerm(v, body);
+            // Restore previous variable
+            this.scopes[token] = prev;
+            return term;
+        }
+        else if (token == '.') {
+            return this.parseApp();
+        }
+        else {
+            throw new Error("An abstraction contains something wrong: " + token);
+        }
+    }
+    parseVar() {
+        const token = this.pop();
+        if (token in this.scopes) {
+            return this.scopes[token];
+        }
+        console.log("FREE VARIABLE: ", token);
+        return new ShareTerm(token);
+    }
+}
+function bind(ctx, graph) {
     const c = graph.canvas;
     c.addEventListener("pointerdown", e => {
         graph.dragging = true;
@@ -403,25 +492,27 @@ function bind(graph) {
         ctx.scale(scale, scale);
         ctx.translate(-w.x, -w.y);
     }, { passive: false });
+    const input = expect(context.querySelector("textarea"), "no input element");
+    const resetBtn = expect(context.querySelector(".buttons .reset"), "no button element");
+    function resetCanvas() {
+        const text = input.value;
+        const parser = new Parser();
+        graph.root = parser.parse(text);
+        graph.setOffset();
+    }
+    resetBtn.addEventListener('click', resetCanvas);
+    resetCanvas();
+    function resizeInput() {
+        input.style.height = "0px"; // reset so it can also shrink
+        input.style.height = input.scrollHeight + 10 + "px";
+    }
+    input.addEventListener("input", resizeInput);
+    resizeInput();
 }
 const context = document.getElementsByClassName("lc-sim")[0];
 const canvas = expect(context.querySelector("canvas"));
 const ctx = canvas.getContext("2d");
 const graph = new Graph(canvas);
-bind(graph);
-const root = new AppTerm();
-const func = new AbsTerm();
-const arg = new AbsTerm();
-root.func = func;
-root.arg = arg;
-const shr = new ShareTerm("x");
-const body = new AppTerm();
-func.var = shr;
-func.body = body;
-body.func = shr;
-body.arg = shr;
-const shr2 = new ShareTerm("y");
-arg.var = shr2;
-graph.root = root;
-root.setOffset();
+const parser = new Parser();
+bind(context, graph);
 requestAnimationFrame(() => graph.frame());
