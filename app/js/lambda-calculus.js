@@ -1,7 +1,9 @@
 "use strict";
 const RADIUS = 25;
 const EDGE = 50;
-const SPEED = 1 / 32;
+const SPEED = 1 / 25;
+const LINE = 5;
+const INFLUENCE = (RADIUS + LINE) * (RADIUS + LINE);
 function expect(value, msg = "unexpected null type") {
     if (value == null)
         throw new Error(msg);
@@ -62,16 +64,19 @@ class Term {
         pos.addAssign(this.offset);
         this.pos.subAssign(this.pos.sub(pos).multAssign(SPEED));
     }
+    height() {
+        return 1;
+    }
     // Returns a list of max widths from the left and right of this Term for every height
     // Includes itself, which will always be [0, 0]
-    setOffset() {
+    setOffset(height, shares) {
         return [[0, 0]];
     }
     drawTerm(parent, ctx, style) {
-        ctx.lineWidth = 6;
         ctx.beginPath();
         ctx.arc(this.pos.x, this.pos.y, RADIUS, 0, Math.PI * 2);
         ctx.fillStyle = style.backgroundColor;
+        ctx.lineWidth = 6;
         ctx.fill();
         ctx.strokeStyle = style.borderTopColor;
         ctx.stroke();
@@ -79,70 +84,80 @@ class Term {
     reduce(pos) {
         return null;
     }
+    replaceShare(share) {
+        return false;
+    }
+    copy(shares) {
+        return new Term();
+    }
 }
 // Represents an abstraction Term
 class AbsTerm extends Term {
     constructor(shr, body) {
         super();
-        this.var = shr;
+        this.shr = shr;
         this.body = body;
     }
     step(pos) {
         super.step(pos);
-        if (this.var) {
-            this.var.visited = false;
-            this.var.step(pos.copy());
-        }
-        if (this.body) {
+        if (this.shr)
+            this.shr.step(pos.copy());
+        if (this.body)
             this.body.step(pos);
-        }
+    }
+    height() {
+        const left = this.shr?.height() || 0;
+        const right = this.body?.height() || 0;
+        return left + right + 1;
     }
     // Body is shifted to the right by EDGE
     // Var is shifted all the way below the body
-    setOffset() {
+    setOffset(height, shares) {
         var widths = [[0, 0]];
+        const body_height = this.body?.height() || 0;
+        if (this.shr) {
+            shares.set(this.shr, height + body_height + 1);
+        }
         if (this.body) {
-            const right = this.body.setOffset();
+            const right = this.body.setOffset(height + 1, shares);
             var shift = -Infinity;
             for (var i = 0; i < right.length; i++) {
                 shift = Math.max(shift, -right[i][0]);
             }
             shift += EDGE;
             for (var i = 0; i < right.length; i++) {
-                const l = right[i][0] + shift;
                 const r = right[i][1] + shift;
-                widths.push([l, r]);
+                widths.push([0, r]);
             }
             this.body.offset.set(shift, EDGE);
         }
-        widths.push([0, 0]);
-        if (this.var) {
-            this.var.offset.set(0, widths.length * EDGE);
-            this.var.visited = false;
-            const left = this.var.setOffset();
+        if (this.shr) {
+            this.shr.offset.set(0, widths.length * EDGE);
+            const left = this.shr.setOffset(height + body_height, shares);
             for (var i = 0; i < left.length; i++) {
                 widths.push(left[i]);
             }
+            shares.delete(this.shr);
         }
-        console.log("ABS", widths);
+        //console.log("ABS", widths);
         return widths;
     }
     drawTerm(parent, ctx, style) {
-        ctx.strokeStyle = style.border;
-        ctx.lineWidth = 6;
         if (parent) {
-            const start = this.pos.add(new Vec2(0, -RADIUS));
+            const start = parent.pos;
+            const end = this.pos;
             ctx.beginPath();
             ctx.moveTo(start.x, start.y);
-            ctx.lineTo(parent.pos.x, parent.pos.y);
+            ctx.arcTo(end.x, start.y, end.x, end.y, RADIUS);
+            ctx.lineTo(end.x, end.y);
+            ctx.strokeStyle = style.color;
+            ctx.lineWidth = 6;
             ctx.stroke();
         }
         this.body?.drawTerm(this, ctx, style);
-        if (this.var) {
-            this.var.visited = false;
-            this.var.drawTerm(this, ctx, style);
-        }
+        this.shr?.drawTerm(this, ctx, style);
         super.drawTerm(this, ctx, style);
+        ctx.beginPath();
         ctx.strokeStyle = style.color;
         ctx.lineWidth = 3;
         ctx.strokeText("λ", this.pos.x, this.pos.y);
@@ -150,10 +165,35 @@ class AbsTerm extends Term {
     reduce(pos) {
         const body = this.body?.reduce(pos) || null;
         if (body) {
-            this.body = body;
-            return this;
+            this.body = body[0];
+            return [this, body[1]];
         }
         return null;
+    }
+    replaceShare(share) {
+        const res = this.body?.replaceShare(share) || false;
+        if (res === true)
+            return true;
+        if (res) {
+            this.body = res;
+            return true;
+        }
+        return false;
+    }
+    copy(shares) {
+        if (this.shr) {
+            const copied_shr = new ShareTerm(this.shr?.label + "'");
+            const copied = new AbsTerm(copied_shr, null);
+            shares.set(this.shr, copied_shr);
+            const body = this.body?.copy(shares) || null;
+            copied.body = body;
+            shares.delete(this.shr);
+            return copied;
+        }
+        else {
+            const body = this.body?.copy(shares) || null;
+            return new AbsTerm(null, body);
+        }
     }
 }
 // Represents an application
@@ -170,9 +210,14 @@ class AppTerm extends Term {
         if (this.arg)
             this.arg.step(pos);
     }
-    setOffset() {
-        const left = this.func?.setOffset() ?? [];
-        const right = this.arg?.setOffset() ?? [];
+    height() {
+        const left = this.func?.height() || 0;
+        const right = this.arg?.height() || 0;
+        return Math.max(left, right) + 1;
+    }
+    setOffset(height, shares) {
+        const left = this.func?.setOffset(height + 1, shares) ?? [];
+        const right = this.arg?.setOffset(height + 1, shares) ?? [];
         const min_height = Math.min(left.length, right.length);
         // Find the widest distance between the trees, at equal levels
         var shift = 0;
@@ -181,10 +226,7 @@ class AppTerm extends Term {
             shift = Math.max(shift, current);
         }
         // Includes padding and shift from center
-        shift = shift / 2;
-        if (min_height > 0) {
-            shift += EDGE;
-        }
+        shift = Math.max(EDGE, (shift + EDGE) / 2);
         // build width graph, first from both sides...
         var widths = [[0, 0]];
         for (var i = 0; i < min_height; i++) {
@@ -208,120 +250,211 @@ class AppTerm extends Term {
             this.func.offset.set(-shift, EDGE);
         if (this.arg)
             this.arg.offset.set(shift, EDGE);
-        console.log("APP", widths);
+        //console.log("APP", widths);
         return widths;
     }
     drawTerm(parent, ctx, style) {
-        ctx.strokeStyle = style.border;
-        ctx.lineWidth = 6;
         if (parent) {
-            const start = this.pos.add(new Vec2(0, -RADIUS));
+            const start = parent.pos;
+            const end = this.pos;
             ctx.beginPath();
             ctx.moveTo(start.x, start.y);
-            ctx.lineTo(parent.pos.x, parent.pos.y);
+            ctx.arcTo(end.x, start.y, end.x, end.y, RADIUS);
+            ctx.lineTo(end.x, end.y);
+            ctx.strokeStyle = style.color;
+            ctx.lineWidth = 6;
             ctx.stroke();
         }
-        this.func?.drawTerm(this, ctx, style);
         this.arg?.drawTerm(this, ctx, style);
+        this.func?.drawTerm(this, ctx, style);
         super.drawTerm(this, ctx, style);
+        ctx.beginPath();
         ctx.strokeStyle = style.color;
         ctx.lineWidth = 3;
         ctx.strokeText("O", this.pos.x, this.pos.y);
     }
     reduce(pos) {
-        if (pos.sub(this.pos).lengthSqr() > RADIUS * RADIUS) {
+        //console.log("APP");
+        //console.log(pos, this.pos);
+        if (pos.sub(this.pos).lengthSqr() > INFLUENCE) {
             const func = this.func?.reduce(pos) || null;
             if (func) {
-                this.func = func;
-                return this;
+                this.func = func[0];
+                return [this, func[1]];
             }
             const arg = this.arg?.reduce(pos) || null;
             if (arg) {
-                this.arg = arg;
-                return this;
+                this.arg = arg[0];
+                return [this, arg[1]];
             }
             return null;
         }
+        //console.log("CLOSE ENOUGH");
         if (!(this.func instanceof AbsTerm)) {
             return null;
         }
-        if (!this.func.var || !this.func.body) {
+        if (!this.func.shr || !this.func.body) {
             return null;
         }
-        this.func.var.body = this.arg;
-        return this.func.body;
+        //console.log("REDUCING");
+        this.func.shr.body = this.arg;
+        return [this.func.body, this.func.shr];
+    }
+    replaceShare(share) {
+        const func = this.func?.replaceShare(share) || false;
+        if (func === true)
+            return true;
+        if (func) {
+            this.func = func;
+            return true;
+        }
+        const arg = this.arg?.replaceShare(share) || false;
+        if (arg === true)
+            return true;
+        if (arg) {
+            this.arg = arg;
+            return true;
+        }
+        return false;
+    }
+    copy(shares) {
+        const func = this.func?.copy(shares) || null;
+        const arg = this.arg?.copy(shares) || null;
+        return new AppTerm(func, arg);
     }
 }
-// Represents a variable, shared among multiple places
+// Kind of an end point. pointed to by ShareTerm that this term is tied to.
+class VarTerm extends Term {
+    constructor(shared) {
+        super();
+        this.shared = shared;
+    }
+    height() {
+        return this.shared.height() + 1;
+    }
+    setOffset(height, shares) {
+        const diff = (shares.get(this.shared) || 0) - height;
+        var weights = [];
+        for (var i = 0; i < diff; i++) {
+            weights.push([0, 0]);
+        }
+        return weights;
+    }
+    drawTerm(parent, ctx, style) {
+        if (parent) {
+            const start = parent.pos;
+            const end = this.pos;
+            ctx.moveTo(start.x, start.y);
+            ctx.arcTo(end.x, start.y, end.x, end.y, RADIUS);
+            ctx.lineTo(end.x, end.y);
+            ctx.strokeStyle = style.color;
+            ctx.lineWidth = 6;
+            ctx.stroke();
+        }
+        this.shared?.drawTerm(this, ctx, style);
+    }
+    replaceShare(share) {
+        if (share === this.shared) {
+            return share;
+        }
+        return false;
+    }
+    copy(shares) {
+        let s = shares.get(this.shared) || null;
+        if (s)
+            return new VarTerm(s);
+        return new VarTerm(this.shared);
+    }
+}
+// Represents a sharing node, pointing to all the variables sharing it
 class ShareTerm extends Term {
     constructor(label) {
         super();
         this.label = label;
         this.body = null;
-        this.visited = true;
     }
     step(pos) {
-        if (this.visited)
-            return;
-        this.visited = true;
         super.step(pos);
         if (this.body) {
             this.body.step(pos);
         }
     }
-    setOffset() {
-        if (this.visited)
-            return [[0, 0]];
-        this.visited = true;
+    height() {
+        if (this.body !== null)
+            return this.body.height() + 2;
+        return 0;
+    }
+    setOffset(height, shares) {
         if (this.body === null) {
             return [[0, 0]];
         }
-        var widths = this.body.setOffset();
-        widths.unshift([0, 0]);
-        this.body.offset.set(0, EDGE);
+        var widths = this.body.setOffset(height + 2, shares);
+        widths.unshift([0, 0], [0, 0]);
+        this.body.offset.set(0, EDGE * 2);
         console.log("SHR", widths);
         return widths;
     }
     drawTerm(parent, ctx, style) {
-        ctx.strokeStyle = style.border;
-        ctx.lineWidth = 6;
         if (parent) {
             const start = this.pos;
             const end = parent.pos;
-            const mid = new Vec2(end.x, start.y);
+            ctx.beginPath();
+            ctx.moveTo(end.x, end.y);
+            ctx.lineTo(end.x, start.y - RADIUS);
+            ctx.strokeStyle = style.backgroundColor;
+            ctx.lineWidth = 18;
+            ctx.stroke();
             ctx.beginPath();
             ctx.moveTo(start.x, start.y);
-            ctx.lineTo(mid.x, mid.y);
+            if (parent instanceof VarTerm)
+                ctx.arcTo(end.x, start.y, end.x, end.y, RADIUS);
+            else
+                ctx.arcTo(start.x, end.y, end.x, end.y, RADIUS);
             ctx.lineTo(end.x, end.y);
+            ctx.strokeStyle = style.color;
+            ctx.lineWidth = 6;
             ctx.stroke();
         }
-        if (this.visited) {
-            return;
-        }
-        this.visited = true;
-        ctx.lineWidth = 6;
+        this.body?.drawTerm(this, ctx, style);
         ctx.beginPath();
         ctx.rect(this.pos.x - RADIUS, this.pos.y - RADIUS, RADIUS * 2, RADIUS * 2);
         ctx.fillStyle = style.backgroundColor;
+        ctx.lineWidth = 6;
         ctx.fill();
         ctx.strokeStyle = style.borderTopColor;
         ctx.stroke();
+        ctx.beginPath();
         ctx.strokeStyle = style.color;
         ctx.lineWidth = 3;
         ctx.strokeText(this.label, this.pos.x, this.pos.y);
-        this.body?.drawTerm(this, ctx, style);
     }
-    // NOTE: This can get called multiple times in a single cycle, so reduction checking isnt O(n)
-    // im not sure how to fix it. options include:
-    //     the term tracks the parents, or number of parents - hard to do, would be unreliable
-    //     external utility tracks all share nodes - data doubling, not good
-    //     the term tracks its left-most parent - ehhhh
     reduce(pos) {
         if (!this.body)
             return null;
-        // TODO: implement a copy method, which will create a copy of the entire subtree and return it
-        // This will create a copy even for the last shared body, but thats fiiine, its fine
-        return null;
+        if (pos.sub(this.pos).lengthSqr() > INFLUENCE) {
+            return null;
+        }
+        const shares = new Map();
+        const copied = this.body.copy(shares);
+        return [copied, this];
+    }
+    replaceShare(share) {
+        if (share === this)
+            return false;
+        const res = this.body?.replaceShare(share) || false;
+        if (res === true)
+            return true;
+        if (res) {
+            this.body = res;
+            return true;
+        }
+        return false;
+    }
+    copy(shares) {
+        let s = shares.get(this) || null;
+        if (s)
+            return s;
+        return this;
     }
 }
 class Graph {
@@ -330,7 +463,7 @@ class Graph {
         this.root = null;
         this.dragging = false;
         this.drag_start = new Vec2(0, 0);
-        this.offset = new Vec2(0, 0);
+        this.drag_last = new Vec2(0, 0);
         const ctx = expect(this.canvas.getContext("2d"));
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
@@ -351,25 +484,33 @@ class Graph {
     }
     reduce(pos) {
         const root = this.root?.reduce(pos) || null;
-        if (root)
-            this.root = root;
-        return (root instanceof Term);
+        if (root) {
+            this.root = root[0];
+            this.root.replaceShare(root[1]);
+        }
+        return (root !== null);
     }
     setOffset() {
-        this.root?.setOffset();
+        const map = new Map();
+        this.root?.setOffset(0, map);
     }
     frame() {
         this.draw();
         this.step();
         requestAnimationFrame(() => this.frame());
     }
-    toWorld(e) {
+    pageToCanvas(e) {
         const rect = this.canvas.getBoundingClientRect();
         const sx = this.canvas.width / rect.width;
         const sy = this.canvas.height / rect.height;
         const x = (e.clientX - rect.left) * sx;
         const y = (e.clientY - rect.top) * sy;
         return new Vec2(x, y);
+    }
+    canvasToWorld(p) {
+        const ctx = expect(this.canvas.getContext("2d"));
+        const w = ctx.getTransform().inverse().transformPoint(new DOMPoint(p.x, p.y));
+        return new Vec2(w.x, w.y);
     }
 }
 class Parser {
@@ -408,13 +549,13 @@ class Parser {
                 this.pop(); // Spend the lambda
                 right = this.parseAbs();
             }
-            else if (token == '(') {
+            else if (token === '(') {
                 this.pop(); // Spend the opening bracket
                 right = this.parseApp();
                 this.pop(); // Spend the closing bracket
             }
-            else if (token == ')' || token == undefined) {
-                return expect(left);
+            else if (token === ')' || token === undefined) {
+                return left;
             }
             else {
                 throw new Error("Application contains something wrong: " + token);
@@ -442,8 +583,8 @@ class Parser {
             this.scopes[token] = prev;
             return term;
         }
-        else if (token == '.') {
-            return this.parseApp();
+        else if (token === '.') {
+            return expect(this.parseApp());
         }
         else {
             throw new Error("An abstraction contains something wrong: " + token);
@@ -452,7 +593,8 @@ class Parser {
     parseVar() {
         const token = this.pop();
         if (token in this.scopes) {
-            return this.scopes[token];
+            const v = new VarTerm(this.scopes[token]);
+            return v;
         }
         console.log("FREE VARIABLE: ", token);
         return new ShareTerm(token);
@@ -462,31 +604,35 @@ function bind(ctx, graph) {
     const c = graph.canvas;
     c.addEventListener("pointerdown", e => {
         graph.dragging = true;
-        graph.drag_start = graph.toWorld(e);
-        graph.offset = graph.drag_start;
+        graph.drag_start = graph.pageToCanvas(e);
+        graph.drag_last = graph.drag_start;
     });
     c.addEventListener("pointerup", e => {
+        const ctx = expect(graph.canvas.getContext("2d"));
         graph.dragging = false;
-        const end = graph.toWorld(e);
-        const diff = end.sub(graph.drag_start);
-        if (diff.lengthSqr() <= RADIUS * RADIUS) {
-            graph.reduce(end);
+        const p = graph.pageToCanvas(e);
+        const diff = p.sub(graph.drag_start);
+        if (diff.lengthSqr() <= INFLUENCE) {
+            const c = graph.canvasToWorld(p);
+            if (graph.reduce(c))
+                graph.setOffset();
         }
     });
     c.addEventListener("pointermove", e => {
         if (!graph.dragging)
             return;
         const ctx = expect(graph.canvas.getContext("2d"));
-        const p = graph.toWorld(e);
+        const p = graph.pageToCanvas(e);
         const zoom = ctx.getTransform().a;
-        ctx.translate((p.x - graph.offset.x) / zoom, (p.y - graph.offset.y) / zoom);
-        graph.offset = p;
+        const diff = p.sub(graph.drag_last);
+        graph.drag_last = p;
+        ctx.translate(diff.x / zoom, diff.y / zoom);
     });
     c.addEventListener("wheel", e => {
         e.preventDefault();
         const ctx = expect(graph.canvas.getContext("2d"));
         const scale = 1 + Math.sign(-e.deltaY) / 10;
-        const p = graph.toWorld(e);
+        const p = graph.pageToCanvas(e);
         const w = ctx.getTransform().inverse().transformPoint(new DOMPoint(p.x, p.y));
         ctx.translate(w.x, w.y);
         ctx.scale(scale, scale);
@@ -516,3 +662,4 @@ const graph = new Graph(canvas);
 const parser = new Parser();
 bind(context, graph);
 requestAnimationFrame(() => graph.frame());
+// (\n f x.n f(f x))(\f x.f(f(x)))
