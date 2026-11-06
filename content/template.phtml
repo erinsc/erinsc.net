@@ -4,7 +4,7 @@
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Stuff Central</title>
-	<script src="<?= function_url('script.js') ?>"></script>
+	<script src="<?= function_url('js/script.js') ?>"></script>
 	<link rel="stylesheet" href="/app/style.css">
 	<link rel="icon" type="image/x-icon" href="/media/images/favicon.png">
 
@@ -25,11 +25,11 @@
 			<?= locator(); ?>
 		</div>
 	</header>
-	<padding></padding>
+	<div class="padding"></div>
 	<content id="content">
 		<?php page_content(); ?>
 	</content>
-	<padding></padding>
+	<div class="padding"></div>
 	<footer>
 		<input class="dark-mode-toggle" type="checkbox" role="switch" onclick="toggleTheme()"></input>
 		<div class="copyright">

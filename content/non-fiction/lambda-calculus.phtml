@@ -1,0 +1,48 @@
+<div class="paragraph" style="--accent: var(--color-hl1);">
+    <h2>the lambda calculus</h2>
+    <div class="paragraph" style="--accent: var(--color-hl1);">
+        <h3>hi there ! this sections is currently unfinished, you'll have to bear with me as i work on it.</h3>
+    </div>
+    <br>
+    <p>the lambda calculus. people always act like its some weird scary thing but idk it feels really simple. ill get you through it.</p>
+    <p>first some boring background. the lambda calculus is a "theoretical computing model", meaning the purpose of it is to represent the idea of calculating something, as a calculation itself. similar to the turing machine you might've heard of. the idea was created by one alonzo church in the 1930s. he was actually alan turing's doctoral advisor, and while both of the models are meant to do the same thing they're basically oposites. its really a luigi waluigi situation lol.</p>
+</div>
+<div class="paragraph">
+    <h3>the structure</h3>
+    <p>every lambda calculus expression representsa calculation, and is built up from a tree of terms. there's 3 types of terms:</p>
+    <ol>
+        <li><b>an application</b> - drawn as a circle</li>
+        <li><b>an abstraction</b> - drawn as the greek letter λ</li>
+        <li><b>a variable</b> - drawn as some identifier</li>
+    </ol>
+    <p><b>abstractions</b> represent functions. they always take one input in, which is a term, and return another term. simple. their right child is the body of the function, while the left child is a <b>bound variable</b>. when we run this function, we find all variables inside the body with the same identifier as the bound variable</p>
+    <p>now, i know that sounded like a lot but if you've worked with functions in math it's really easy. if you take a function like <code>f(x) := x^2 + 6x - 6</code>. if we "run" the function with some argument, lets say <code>7</code>, we first replace all the bound variables <code>x</code> with it, so we get <code>f(7) = 7^2 + 6*7 - 6</code>.  after that we can simplify it and get a result, but for now we just care about the variable replacing step.</p>
+    <p><b>applications</b> represent that running of a function. when we wrote <code>f(7)</code> we were actually applying the argument <code>7</code> onto our function <code>f</code>.</p>
+    <p></p>
+
+</div>
+<div class="paragraph">
+    <h3>playground</h3>
+    <p>here you can mess around with a pretty visualizer !</p>
+    <p><b>abstractions</b> have their bound variable drawn only once. all instances of it link back to the same node so its clear to see what goes where, and lets us ignore alpha reduction.</p>
+    <p><b>applications</b> are drawn orange if they can be reduced, you can do so by clicking on them. you can also press the <b>auto</b> button to let the visualizer auto-reduce the top-most one once a second. <b>ffwd</b> speeds things up by 10.</p>
+
+    <div class="lc-sim" id="s1">
+        <div class="buttons">
+            <button class="reset">reset</button>
+            <button class="auto">auto</button>
+            <button class="fast">ffwd</button>
+        </div>
+        <select class="examples">
+            <option value="" selected disabled>...</option>
+            <option value="\x.x">identity</option>
+            <option value="(\n f x.n f (f x))(\f x.f(f(f(x))))">increment 3</option>
+            <option value="(\a b f x.a f (b f x))((\f x.f(f(x))))(\f x.f(f(f(f(f(x))))))">2 + 5</option>
+            <option value="(\a b f.a (b f))((\f x.f(f(f(x)))))((\f x.f(f(f(f(x))))))">3 * 4</option>
+            <option value="(\a b.b a) ((\f x.f(f(f(f(x)))))) ((\f x.f(f(f(x)))))">4^3</option>
+        </select>
+        <textarea id="s1">(\n f x.n f(f x))(\f x.f(f(x)))</textarea>
+        <canvas width="1536" height="1024"></canvas>
+    </div>
+</div>
+<script src="<?= function_url('js/lambda-calculus.js') ?>"></script>
