@@ -12,6 +12,7 @@ html {
     --color-hl1: orangered;
     --color-hl2: orange;
     --color-side: rgb(255, 215, 200);
+    --bt: 4px; /* Border thickness */
 }
 html[theme-mode='dark'] {
     --color-bg: rgb(10, 5, 0);
@@ -22,10 +23,10 @@ html[theme-mode='dark'] {
 }
 
 body {
-    margin: 5px 5px 5px 5px;
-    padding-right: 10px;
-    border: 5px solid var(--color-border);
-    border-radius: 20px;
+    margin: var(--bt);
+    padding-right: calc(2*var(--bt));
+    border: var(--bt) solid var(--color-border);
+    border-radius: calc(var(--bt) * 4);
 
     display: flex;
     flex-direction: column;
@@ -44,14 +45,14 @@ a:hover {
 }
 header {
     z-index: 2;
-    margin: 10px 0px 2px 10px;
-    padding-bottom: 10px;
+    margin: calc(var(--bt)*2) 0 0 calc(var(--bt)*2);
+    padding-bottom: calc(var(--bt)*2);
     font-weight: bold;
-    border-bottom: 5px solid var(--color-border);
+    border-bottom: var(--bt) solid var(--color-border);
     background: var(--color-bg);
 
     position: sticky;
-    top: 10px;
+    top: calc(var(--bt)*2);
     .nameplate {
         cursor: default;
         font-size: 60px;
@@ -62,25 +63,24 @@ header {
         overflow: clip;
     }
     .navbar {
-        padding-top: 10px;
+        padding-top: calc(var(--bt)*2);
     }
     .locator {
         font-size: 20px;
-        white-space: nowrap;
-        padding-top: 10px;
+        padding-top: calc(var(--bt)*2);
         a, .endpoint {
             font-size: 25px;
         }
     }
     img {
-        border-radius: 10px;
+        border-radius: calc(var(--bt)*2);
         height: 75px;
     }
 }
-padding {
+.padding {
     z-index: 1;
-    padding-bottom: 10px;
-    margin-bottom: -10px;
+    padding-bottom: calc(var(--bt)*2);
+    margin-bottom: calc(var(--bt)*-2);
     position: sticky;
     top: 0;
     bottom: 0;
@@ -89,13 +89,13 @@ padding {
 
 footer {
     z-index: 2;
-    margin: auto 0px 10px 10px;
-    padding-top: 10px;
-    border-top: 5px solid var(--color-border);
+    margin: auto 0px calc(var(--bt)*2) calc(var(--bt)*2);
+    padding-top: calc(var(--bt)*2);
+    border-top: var(--bt) solid var(--color-border);
     background-color: var(--color-bg);
 
     position: sticky;
-    bottom: 10px;
+    bottom: calc(var(--bt)*2);
 
     display: flex;
     align-items: center;
@@ -104,16 +104,16 @@ footer {
     font-size: 15px;
 
     .copyright {
-        padding-left: 10px;
+        padding-left: calc(var(--bt)*2);
     }
 }
-
+/* TODO: make this dependent on --bt */
 .dark-mode-toggle {
     appearance: none;
     width: 80px;
     height: 30px;
-    border: 5px solid var(--color-border);
-    border-radius: 10px;
+    border: var(--bt) solid var(--color-border);
+    border-radius: calc(var(--bt)*2);
 
     position: relative;
     cursor: pointer;
@@ -125,51 +125,51 @@ footer {
     content: "";
     position: absolute;
     left: 0;
-    width: 25px;
-    height: 20px;
+    width: calc(30px - var(--bt));
+    height: calc(30px - 2*var(--bt));
     background: var(--color-border);
     transition: left 0.3s ease, clip-path 0.3s ease;
 }
 html[theme-mode="dark"] .dark-mode-toggle::before {
-    left: 45px;
+    left: calc(50px - var(--bt));
 }
 
 .paragraph {
-    margin: 10px;
-    padding: 10px 0 5px 10px;
-    border-left: 5px solid var(--accent, var(--color-side));
+    margin: calc(var(--bt)*2) 0 calc(var(--bt)*2) calc(var(--bt)*2);
+    padding: calc(var(--bt)*2) 0 0 calc(var(--bt)*2);
+    border-left: var(--bt) solid var(--accent, var(--color-side));
     font-size: 16px;
 
     overflow: hidden;
     line-height: calc(1em + 4px);
     img {
         max-width: min(400px, 100%);
-        border-radius: 10px;
-        margin: 0 0 10px 10px;
+        border-radius: calc(var(--bt)*2);
+        margin: 0 0 calc(var(--bt)*2) calc(var(--bt)*2);
     }
     .cover {
         float: right;
     }
     p, ul, ol {
         max-width: 800px;
-        padding-bottom: 10px;
+        padding-bottom: calc(var(--bt)*2);
     }
     ol {
-        padding-left: 15px;
+        padding-left: calc(var(--bt)*3);
     }
     ul {
-        padding-left: 15px;
+        padding-left: calc(var(--bt)*3);
         list-style-type: "- ";
     }
     h3 {
         display: inline-block;
-        padding-bottom: 10px;
-        padding-right: 10px;
+        padding-bottom: calc(var(--bt)*2);
+        padding-right: calc(var(--bt)*2);
     }
     h2 {
         line-height: 1em;
         font-size: 30px;
-        padding-bottom: 20px;
+        padding-bottom: calc(var(--bt)*2);
     }
 }
 code {
@@ -183,14 +183,14 @@ code {
     display: flex;
     flex-wrap: wrap;
     align-items: flex-start;
-    gap: 10px;
+    gap: calc(var(--bt)*2);
 
     .labeled {
         max-width: min(400px, 100%);
         margin-bottom: -5px;
 
         p {
-            margin-left: 10px;
+            margin-left: calc(var(--bt)*2);
         }
         img {
             max-width: 100%;
@@ -203,37 +203,42 @@ code {
     .paragraph .cover {
         float: none;
         display: block;
-        margin: 0 0 10px 0;
+        margin: 0 0 calc(var(--bt)*2) 0;
     }
     header .nameplate {
         font-size: 40px;
     }
 }
-textarea {
-    font-family: 'Courier New', monospace;
-    padding: 4px 5px;
+textarea, select {
+    height: calc(var(--bt)*8);
+    
+    padding: var(--bt);
     font-size: 20px;
-    border: 5px solid var(--color-border);
-    border-radius: 10px;
+    border: var(--bt) solid var(--color-border);
+    border-radius: calc(var(--bt)*2);
     background: var(--color-bg);
     color: var(--color-hl1);
-    margin-bottom: 5px;
-
-    height: 40px;
-    flex: 1;
+    margin-bottom: var(--bt);
+}
+textarea {
+    font-family: 'Courier New', monospace;
+    resize: vertical;
+    box-sizing: border-box;
     min-height: 40px;
+    max-width: 800px;
 }
 
 button {
     font-size: 20px;
-    padding: 5px 5px;
-    width: 100px;
-    border: 5px solid var(--color-border);
-    border-radius: 10px;
+    padding: var(--bt);
+    height: calc(var(--bt)*8);
+    width: var(--btn-width, 100px);
+    border: var(--bt) solid var(--color-border);
+    border-radius: calc(var(--bt)*2);
     background: var(--color-bg);
     color: var(--color-hl1);
     cursor: pointer;
-    margin-bottom: 5px;
+    margin-bottom: var(--bt);
 }
 button:hover {
     color: var(--color-hl2);
@@ -250,9 +255,8 @@ button[aria-pressed="true"]:hover {
 .buttons {
     display: flex;
     align-items: flex-start;
-    gap: 5px;
+    gap: var(--bt);
 }
-
 
 /* Right now only in lambda-calculus.phtml */
 
@@ -263,8 +267,9 @@ button[aria-pressed="true"]:hover {
     canvas {
         background: var(--color-bg);
         color: var(--color-hl1);
-        border: 5px solid var(--color-border);
-        border-radius: 10px;
+        border: var(--bt) solid var(--color-border);
+        border-radius: calc(var(--bt)*2);
+        max-width: 800px;
     }
 }
 

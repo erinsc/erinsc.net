@@ -1,9 +1,9 @@
 "use strict";
 const RADIUS = 25;
-const EDGE = 50;
-const SPEED = 1 / 25;
 const LINE = 5;
-const INFLUENCE = (RADIUS + LINE) * (RADIUS + LINE);
+const EDGE = RADIUS * 2 + LINE * 2;
+const SPEED = 1 / 25;
+const INFLUENCE = RADIUS * RADIUS * 8;
 function expect(value, msg = "unexpected null type") {
     if (value == null)
         throw new Error(msg);
@@ -55,8 +55,8 @@ class Vec2 {
     }
 }
 class Term {
-    constructor() {
-        this.pos = new Vec2(0, 0);
+    constructor(pos = new Vec2(0, 0)) {
+        this.pos = pos;
         this.offset = new Vec2(0, 0);
     }
     // Move a Term towards pos + offset
@@ -64,12 +64,13 @@ class Term {
         pos.addAssign(this.offset);
         this.pos.subAssign(this.pos.sub(pos).multAssign(SPEED));
     }
-    height() {
+    // Get total height of the subtree. ignores shared links
+    getHeight() {
         return 1;
     }
     // Returns a list of max widths from the left and right of this Term for every height
     // Includes itself, which will always be [0, 0]
-    setOffset(height, shares) {
+    setOffset(level, levels) {
         return [[0, 0]];
     }
     drawTerm(parent, ctx, style) {
@@ -81,20 +82,20 @@ class Term {
         ctx.strokeStyle = style.borderTopColor;
         ctx.stroke();
     }
-    reduce(pos) {
-        return null;
+    copy(relables) {
+        return new Term(this.pos.copy());
     }
-    replaceShare(share) {
+    reduce(pos) {
         return false;
     }
-    copy(shares) {
-        return new Term();
+    replace(from, to) {
+        return null;
     }
 }
 // Represents an abstraction Term
 class AbsTerm extends Term {
-    constructor(shr, body) {
-        super();
+    constructor(shr, body, pos = new Vec2(0, 0)) {
+        super(pos);
         this.shr = shr;
         this.body = body;
     }
@@ -105,41 +106,28 @@ class AbsTerm extends Term {
         if (this.body)
             this.body.step(pos);
     }
-    height() {
-        const left = this.shr?.height() || 0;
-        const right = this.body?.height() || 0;
-        return left + right + 1;
+    getHeight() {
+        return this.body.getHeight() + 2;
     }
     // Body is shifted to the right by EDGE
     // Var is shifted all the way below the body
-    setOffset(height, shares) {
+    setOffset(level, levels) {
         var widths = [[0, 0]];
-        const body_height = this.body?.height() || 0;
-        if (this.shr) {
-            shares.set(this.shr, height + body_height + 1);
+        const right_height = this.body.getHeight();
+        levels.set(this.shr, right_height + level + 1);
+        const right = this.body.setOffset(level + 1, levels);
+        var shift = -Infinity;
+        for (var i = 0; i < right.length; i++) {
+            shift = Math.max(shift, -right[i][0]);
         }
-        if (this.body) {
-            const right = this.body.setOffset(height + 1, shares);
-            var shift = -Infinity;
-            for (var i = 0; i < right.length; i++) {
-                shift = Math.max(shift, -right[i][0]);
-            }
-            shift += EDGE;
-            for (var i = 0; i < right.length; i++) {
-                const r = right[i][1] + shift;
-                widths.push([0, r]);
-            }
-            this.body.offset.set(shift, EDGE);
+        shift += EDGE;
+        for (var i = 0; i < right.length; i++) {
+            const r = right[i][1] + shift;
+            widths.push([0, r]);
         }
-        if (this.shr) {
-            this.shr.offset.set(0, widths.length * EDGE);
-            const left = this.shr.setOffset(height + body_height, shares);
-            for (var i = 0; i < left.length; i++) {
-                widths.push(left[i]);
-            }
-            shares.delete(this.shr);
-        }
-        //console.log("ABS", widths);
+        this.body.offset.set(shift, EDGE);
+        this.shr.offset.set(0, (right_height) * EDGE);
+        widths.push([0, 0]);
         return widths;
     }
     drawTerm(parent, ctx, style) {
@@ -156,50 +144,47 @@ class AbsTerm extends Term {
         }
         this.body?.drawTerm(this, ctx, style);
         this.shr?.drawTerm(this, ctx, style);
-        super.drawTerm(this, ctx, style);
         ctx.beginPath();
-        ctx.strokeStyle = style.color;
+        ctx.roundRect(this.pos.x - RADIUS, this.pos.y - RADIUS, RADIUS * 2, RADIUS * 2, RADIUS / 2);
+        ctx.fillStyle = style.backgroundColor;
+        ctx.lineWidth = 6;
+        ctx.fill();
+        ctx.strokeStyle = style.borderTopColor;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.strokeStyle = style.borderTopColor;
         ctx.lineWidth = 3;
-        ctx.strokeText("λ", this.pos.x, this.pos.y);
+        ctx.strokeText("λ", this.pos.x, this.pos.y + 2);
+    }
+    copy(shares) {
+        const copied_shr = new ShareTerm(this.shr.label, this.shr.pos.copy());
+        shares.set(this.shr, copied_shr);
+        const body = this.body.copy(shares);
+        const copied = new AbsTerm(copied_shr, body, this.pos.copy());
+        shares.delete(this.shr);
+        return copied;
     }
     reduce(pos) {
-        const body = this.body?.reduce(pos) || null;
-        if (body) {
-            this.body = body[0];
-            return [this, body[1]];
-        }
-        return null;
-    }
-    replaceShare(share) {
-        const res = this.body?.replaceShare(share) || false;
-        if (res === true)
+        const body = this.body.reduce(pos);
+        if (body === true)
             return true;
-        if (res) {
-            this.body = res;
+        if (body) {
+            this.body = body;
             return true;
         }
         return false;
     }
-    copy(shares) {
-        if (this.shr) {
-            const copied_shr = new ShareTerm(this.shr?.label + "'");
-            const copied = new AbsTerm(copied_shr, null);
-            shares.set(this.shr, copied_shr);
-            const body = this.body?.copy(shares) || null;
-            copied.body = body;
-            shares.delete(this.shr);
-            return copied;
-        }
-        else {
-            const body = this.body?.copy(shares) || null;
-            return new AbsTerm(null, body);
-        }
+    replace(from, to) {
+        const body = this.body.replace(from, to);
+        if (body)
+            this.body = body;
+        return null;
     }
 }
 // Represents an application
 class AppTerm extends Term {
-    constructor(func, arg) {
-        super();
+    constructor(func, arg, pos = new Vec2(0, 0)) {
+        super(pos);
         this.func = func;
         this.arg = arg;
     }
@@ -210,14 +195,12 @@ class AppTerm extends Term {
         if (this.arg)
             this.arg.step(pos);
     }
-    height() {
-        const left = this.func?.height() || 0;
-        const right = this.arg?.height() || 0;
-        return Math.max(left, right) + 1;
+    getHeight() {
+        return Math.max(this.func.getHeight(), this.arg.getHeight()) + 1;
     }
-    setOffset(height, shares) {
-        const left = this.func?.setOffset(height + 1, shares) ?? [];
-        const right = this.arg?.setOffset(height + 1, shares) ?? [];
+    setOffset(level, levels) {
+        const left = this.func.setOffset(level + 1, levels);
+        const right = this.arg.setOffset(level + 1, levels);
         const min_height = Math.min(left.length, right.length);
         // Find the widest distance between the trees, at equal levels
         var shift = 0;
@@ -246,11 +229,8 @@ class AppTerm extends Term {
             widths.push([l, r]);
         }
         // Set offsets of kids
-        if (this.func)
-            this.func.offset.set(-shift, EDGE);
-        if (this.arg)
-            this.arg.offset.set(shift, EDGE);
-        //console.log("APP", widths);
+        this.func.offset.set(-shift, EDGE);
+        this.arg.offset.set(shift, EDGE);
         return widths;
     }
     drawTerm(parent, ctx, style) {
@@ -267,48 +247,37 @@ class AppTerm extends Term {
         }
         this.arg?.drawTerm(this, ctx, style);
         this.func?.drawTerm(this, ctx, style);
-        super.drawTerm(this, ctx, style);
         ctx.beginPath();
-        ctx.strokeStyle = style.color;
-        ctx.lineWidth = 3;
-        ctx.strokeText("O", this.pos.x, this.pos.y);
+        ctx.arc(this.pos.x, this.pos.y, RADIUS, 0, Math.PI * 2);
+        ctx.strokeStyle = style.borderTopColor;
+        if (this.func instanceof AbsTerm)
+            ctx.fillStyle = style.color;
+        else
+            ctx.fillStyle = style.backgroundColor;
+        ctx.lineWidth = 6;
+        ctx.fill();
+        ctx.stroke();
+    }
+    copy(shares) {
+        const func = this.func.copy(shares);
+        const arg = this.arg.copy(shares);
+        return new AppTerm(func, arg, this.pos.copy());
     }
     reduce(pos) {
-        //console.log("APP");
-        //console.log(pos, this.pos);
-        if (pos.sub(this.pos).lengthSqr() > INFLUENCE) {
-            const func = this.func?.reduce(pos) || null;
-            if (func) {
-                this.func = func[0];
-                return [this, func[1]];
-            }
-            const arg = this.arg?.reduce(pos) || null;
-            if (arg) {
-                this.arg = arg[0];
-                return [this, arg[1]];
-            }
-            return null;
-        }
-        //console.log("CLOSE ENOUGH");
-        if (!(this.func instanceof AbsTerm)) {
-            return null;
-        }
-        if (!this.func.shr || !this.func.body) {
-            return null;
-        }
-        //console.log("REDUCING");
-        this.func.shr.body = this.arg;
-        return [this.func.body, this.func.shr];
-    }
-    replaceShare(share) {
-        const func = this.func?.replaceShare(share) || false;
+        const func = this.func.reduce(pos);
         if (func === true)
             return true;
         if (func) {
             this.func = func;
             return true;
         }
-        const arg = this.arg?.replaceShare(share) || false;
+        if ((this.func instanceof AbsTerm) && (!pos || pos.sub(this.pos).lengthSqr() < INFLUENCE)) {
+            const body = this.func.body.replace(this.func.shr, this.arg);
+            if (body)
+                return body;
+            return this.func.body;
+        }
+        const arg = this.arg.reduce(pos);
         if (arg === true)
             return true;
         if (arg) {
@@ -317,89 +286,74 @@ class AppTerm extends Term {
         }
         return false;
     }
-    copy(shares) {
-        const func = this.func?.copy(shares) || null;
-        const arg = this.arg?.copy(shares) || null;
-        return new AppTerm(func, arg);
+    replace(from, to) {
+        const func = this.func.replace(from, to);
+        if (func)
+            this.func = func;
+        const arg = this.arg.replace(from, to);
+        if (arg)
+            this.arg = arg;
+        return null;
     }
 }
 // Kind of an end point. pointed to by ShareTerm that this term is tied to.
 class VarTerm extends Term {
-    constructor(shared) {
-        super();
-        this.shared = shared;
+    constructor(shr, pos = new Vec2(0, 0)) {
+        super(pos);
+        this.shr = shr;
     }
-    height() {
-        return this.shared.height() + 1;
+    getHeight() {
+        return 1;
     }
-    setOffset(height, shares) {
-        const diff = (shares.get(this.shared) || 0) - height;
+    setOffset(level, levels) {
         var weights = [];
-        for (var i = 0; i < diff; i++) {
+        var rem = expect(levels.get(this.shr)) - level + 1;
+        for (var i = 0; i < rem; i++)
             weights.push([0, 0]);
-        }
         return weights;
     }
     drawTerm(parent, ctx, style) {
         if (parent) {
             const start = parent.pos;
             const end = this.pos;
+            ctx.beginPath();
             ctx.moveTo(start.x, start.y);
-            ctx.arcTo(end.x, start.y, end.x, end.y, RADIUS);
-            ctx.lineTo(end.x, end.y);
+            ctx.arcTo(end.x, start.y, end.x, end.y - RADIUS, RADIUS);
+            ctx.lineTo(end.x, end.y - RADIUS);
             ctx.strokeStyle = style.color;
             ctx.lineWidth = 6;
             ctx.stroke();
         }
-        this.shared?.drawTerm(this, ctx, style);
+        this.shr.drawTerm(this, ctx, style);
     }
-    replaceShare(share) {
-        if (share === this.shared) {
-            return share;
-        }
-        return false;
-    }
+    // TODO: Fix copying if body is a single variable. it doesnt seem to copy at all
     copy(shares) {
-        let s = shares.get(this.shared) || null;
-        if (s)
-            return new VarTerm(s);
-        return new VarTerm(this.shared);
+        console.log("VAR COPIED", this.shr.label);
+        let s = shares.get(this.shr) || this.shr;
+        return new VarTerm(s, this.pos.copy());
+    }
+    replace(from, to) {
+        if (this.shr === from) {
+            const map = new Map();
+            return to.copy(map);
+        }
+        return null;
     }
 }
-// Represents a sharing node, pointing to all the variables sharing it
 class ShareTerm extends Term {
-    constructor(label) {
-        super();
+    constructor(label, pos = new Vec2(2, 2)) {
+        super(pos);
         this.label = label;
-        this.body = null;
     }
-    step(pos) {
-        super.step(pos);
-        if (this.body) {
-            this.body.step(pos);
-        }
-    }
-    height() {
-        if (this.body !== null)
-            return this.body.height() + 2;
-        return 0;
-    }
-    setOffset(height, shares) {
-        if (this.body === null) {
-            return [[0, 0]];
-        }
-        var widths = this.body.setOffset(height + 2, shares);
-        widths.unshift([0, 0], [0, 0]);
-        this.body.offset.set(0, EDGE * 2);
-        console.log("SHR", widths);
-        return widths;
+    getHeight() {
+        return 1;
     }
     drawTerm(parent, ctx, style) {
         if (parent) {
             const start = this.pos;
             const end = parent.pos;
             ctx.beginPath();
-            ctx.moveTo(end.x, end.y);
+            ctx.moveTo(end.x, end.y - RADIUS);
             ctx.lineTo(end.x, start.y - RADIUS);
             ctx.strokeStyle = style.backgroundColor;
             ctx.lineWidth = 18;
@@ -407,17 +361,14 @@ class ShareTerm extends Term {
             ctx.beginPath();
             ctx.moveTo(start.x, start.y);
             if (parent instanceof VarTerm)
-                ctx.arcTo(end.x, start.y, end.x, end.y, RADIUS);
-            else
-                ctx.arcTo(start.x, end.y, end.x, end.y, RADIUS);
-            ctx.lineTo(end.x, end.y);
+                ctx.arcTo(end.x, start.y, end.x, end.y - RADIUS, RADIUS);
+            ctx.lineTo(end.x, end.y - RADIUS);
             ctx.strokeStyle = style.color;
             ctx.lineWidth = 6;
             ctx.stroke();
         }
-        this.body?.drawTerm(this, ctx, style);
         ctx.beginPath();
-        ctx.rect(this.pos.x - RADIUS, this.pos.y - RADIUS, RADIUS * 2, RADIUS * 2);
+        ctx.roundRect(this.pos.x - RADIUS, this.pos.y - RADIUS, RADIUS * 2, RADIUS * 2, RADIUS / 2);
         ctx.fillStyle = style.backgroundColor;
         ctx.lineWidth = 6;
         ctx.fill();
@@ -428,33 +379,8 @@ class ShareTerm extends Term {
         ctx.lineWidth = 3;
         ctx.strokeText(this.label, this.pos.x, this.pos.y);
     }
-    reduce(pos) {
-        if (!this.body)
-            return null;
-        if (pos.sub(this.pos).lengthSqr() > INFLUENCE) {
-            return null;
-        }
-        const shares = new Map();
-        const copied = this.body.copy(shares);
-        return [copied, this];
-    }
-    replaceShare(share) {
-        if (share === this)
-            return false;
-        const res = this.body?.replaceShare(share) || false;
-        if (res === true)
-            return true;
-        if (res) {
-            this.body = res;
-            return true;
-        }
-        return false;
-    }
-    copy(shares) {
-        let s = shares.get(this) || null;
-        if (s)
-            return s;
-        return this;
+    replace(from, to) {
+        return null;
     }
 }
 class Graph {
@@ -468,7 +394,6 @@ class Graph {
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.font = "40px 'TeX Gyre Adventor', sans-serif";
-        console.log("Graph constructed");
     }
     draw() {
         const styles = getComputedStyle(this.canvas);
@@ -482,17 +407,22 @@ class Graph {
     step() {
         this.root?.step(new Vec2(0, 0));
     }
+    setOffset() {
+        const levels = new Map();
+        this.root?.setOffset(0, levels);
+    }
     reduce(pos) {
         const root = this.root?.reduce(pos) || null;
-        if (root) {
-            this.root = root[0];
-            this.root.replaceShare(root[1]);
+        if (root instanceof Term) {
+            this.root = root;
+            this.setOffset();
+            return true;
         }
-        return (root !== null);
-    }
-    setOffset() {
-        const map = new Map();
-        this.root?.setOffset(0, map);
+        if (root) {
+            this.setOffset();
+            return true;
+        }
+        return false;
     }
     frame() {
         this.draw();
@@ -517,12 +447,11 @@ class Parser {
     constructor() {
         this.pos = 0;
         this.tokens = [];
-        this.scopes = {};
+        this.shares = new Map();
     }
     parse(text) {
         this.tokens = text.match(/[\\λ.()]|[A-Za-z']+/g) || [];
         this.pos = 0;
-        console.log("Parse start");
         return this.parseApp();
     }
     isVar(t) {
@@ -561,7 +490,8 @@ class Parser {
                 throw new Error("Application contains something wrong: " + token);
             }
             if (left) {
-                left = new AppTerm(left, right);
+                if (right)
+                    left = new AppTerm(left, right);
             }
             else {
                 left = right;
@@ -573,14 +503,15 @@ class Parser {
         const token = this.pop();
         if (this.isVar(token)) {
             // In case the variable name already exists, pop out temporarily
-            const prev = this.scopes[token];
+            const prev = this.shares.get(token);
             const v = new ShareTerm(token);
-            this.scopes[token] = v;
+            this.shares.set(token, v);
             // Recursive call
             const body = this.parseAbs();
             const term = new AbsTerm(v, body);
             // Restore previous variable
-            this.scopes[token] = prev;
+            if (prev)
+                this.shares.set(token, prev);
             return term;
         }
         else if (token === '.') {
@@ -592,32 +523,37 @@ class Parser {
     }
     parseVar() {
         const token = this.pop();
-        if (token in this.scopes) {
-            const v = new VarTerm(this.scopes[token]);
+        const shr = this.shares.get(token);
+        if (shr) {
+            const v = new VarTerm(shr);
             return v;
         }
-        console.log("FREE VARIABLE: ", token);
         return new ShareTerm(token);
     }
 }
-function bind(ctx, graph) {
+function bind(ctx) {
+    const canvas = expect(ctx.querySelector("canvas"));
+    const graph = new Graph(canvas);
     const c = graph.canvas;
     c.addEventListener("pointerdown", e => {
         graph.dragging = true;
         graph.drag_start = graph.pageToCanvas(e);
         graph.drag_last = graph.drag_start;
     });
-    c.addEventListener("pointerup", e => {
+    function canvasStopMoving(e) {
         const ctx = expect(graph.canvas.getContext("2d"));
         graph.dragging = false;
         const p = graph.pageToCanvas(e);
         const diff = p.sub(graph.drag_start);
         if (diff.lengthSqr() <= INFLUENCE) {
             const c = graph.canvasToWorld(p);
-            if (graph.reduce(c))
-                graph.setOffset();
+            graph.reduce(c);
+            graph.setOffset();
         }
-    });
+    }
+    c.addEventListener("pointerup", e => canvasStopMoving(e));
+    c.addEventListener("pointerleave", e => canvasStopMoving(e));
+    c.addEventListener("pointercancel", e => canvasStopMoving(e));
     c.addEventListener("pointermove", e => {
         if (!graph.dragging)
             return;
@@ -638,8 +574,8 @@ function bind(ctx, graph) {
         ctx.scale(scale, scale);
         ctx.translate(-w.x, -w.y);
     }, { passive: false });
-    const input = expect(context.querySelector("textarea"), "no input element");
-    const resetBtn = expect(context.querySelector(".buttons .reset"), "no button element");
+    const input = expect(ctx.querySelector("textarea"), "no input element");
+    const resetBtn = expect(ctx.querySelector(".buttons .reset"), "no button element");
     function resetCanvas() {
         const text = input.value;
         const parser = new Parser();
@@ -654,12 +590,37 @@ function bind(ctx, graph) {
     }
     input.addEventListener("input", resizeInput);
     resizeInput();
+    let autoTimer = null;
+    let autoDelay = 1000;
+    const autoBtn = expect(ctx.querySelector(".buttons .auto"), "no button element");
+    function autoReduce() {
+        if (autoBtn.getAttribute('aria-pressed') !== 'true')
+            return;
+        if (!graph.reduce(null)) {
+            autoBtn.setAttribute('aria-pressed', 'false');
+            return;
+        }
+        autoTimer = window.setTimeout(autoReduce, autoDelay);
+    }
+    autoBtn.addEventListener('click', () => {
+        const reversed = autoBtn.getAttribute('aria-pressed') === 'true';
+        autoBtn.setAttribute('aria-pressed', (!reversed).toString());
+        autoReduce();
+    });
+    const fastBtn = expect(ctx.querySelector(".buttons .fast"), "no button element");
+    fastBtn.addEventListener('click', () => {
+        const reversed = fastBtn.getAttribute('aria-pressed') === 'true';
+        fastBtn.setAttribute('aria-pressed', (!reversed).toString());
+        autoDelay = reversed ? 1000 : 100;
+    });
+    const examples = expect(ctx.querySelector(".examples"), "no examples select");
+    examples.addEventListener("change", () => {
+        input.value = examples.value;
+        resetCanvas();
+        resizeInput();
+    });
+    requestAnimationFrame(() => graph.frame());
 }
 const context = document.getElementsByClassName("lc-sim")[0];
-const canvas = expect(context.querySelector("canvas"));
-const ctx = canvas.getContext("2d");
-const graph = new Graph(canvas);
-const parser = new Parser();
-bind(context, graph);
-requestAnimationFrame(() => graph.frame());
+bind(context);
 // (\n f x.n f(f x))(\f x.f(f(x)))
