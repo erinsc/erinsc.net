@@ -433,6 +433,10 @@ class Graph {
     canvas: HTMLCanvasElement;
     root: Term | null;
 
+    tracking: boolean;
+    target_zoom: number;
+    target_center: Vec2;
+
     dragging: boolean;
     drag_start: Vec2;
     drag_last: Vec2;
@@ -441,6 +445,10 @@ class Graph {
         this.canvas = canvas;
         this.root = null;
         
+        this.tracking = false;
+        this.target_zoom = 1;
+        this.target_center = new Vec2(0, 0);
+
         this.dragging = false;
         this.drag_start = new Vec2(0, 0);
         this.drag_last = new Vec2(0, 0);
@@ -463,10 +471,41 @@ class Graph {
     }
     step() {
         this.root?.step(new Vec2(0, 0));
+
+        if (this.tracking) {
+            const ctx = expect(this.canvas.getContext("2d"));
+            const m = ctx.getTransform();
+
+            const newZoom = m.a + (this.target_zoom - m.a) * SPEED;
+            const cx = (this.canvas.width / 2 - m.e) / m.a;
+            const cy = (this.canvas.height / 2 - m.f) / m.a;
+            const newCx = cx + (this.target_center.x - cx) * SPEED;
+            const newCy = cy + (this.target_center.y - cy) * SPEED;
+
+            ctx.setTransform(newZoom, 0, 0, newZoom, this.canvas.width / 2 - newCx * newZoom, this.canvas.height / 2 - newCy * newZoom);
+        }
     }
-    setOffset() {
+    setOffset(): [number, number][] {
         const levels = new Map<ShareTerm, number>();
-        this.root?.setOffset(0, levels);
+        if (this.root) {
+            this.root.offset.set(0, 0);
+            return this.root.setOffset(0, levels);
+        }
+        return [];
+    }
+    bounds(): [number, number, number, number] {
+        const top = -RADIUS * 2;
+        const bottom = ((this.root?.getHeight() || 0) - 1) * EDGE;
+        const widths = this.setOffset();
+
+        var left = Infinity, right = -Infinity;
+        for (var i = 0; i < widths.length; i++) {
+            left = Math.min(left, widths[i][0]);
+            right = Math.max(right, widths[i][1]);
+        }
+        left -= RADIUS * 2;
+        right += RADIUS * 2;
+        return [left, top, right - left, bottom - top];
     }
     reduce(pos: Vec2 | null): boolean {
         const root = this.root?.reduce(pos) || null;
@@ -602,6 +641,8 @@ function bind(ctx: Element) {
     const graph = new Graph(canvas);
     const c = graph.canvas;
 
+    // TODO: create camera focusing thing
+
     c.addEventListener("pointerdown", e => {
         graph.dragging = true;
         graph.drag_start = graph.pageToCanvas(e);
@@ -628,6 +669,7 @@ function bind(ctx: Element) {
         if (!graph.dragging)
             return;
 
+        graph.tracking = false;
         const ctx = expect(graph.canvas.getContext("2d"));
         const p = graph.pageToCanvas(e);
         const zoom = ctx.getTransform().a;
@@ -658,6 +700,7 @@ function bind(ctx: Element) {
         const parser = new Parser();
         graph.root = parser.parse(text);
         graph.setOffset();
+        fitBounds();
     }
 
     resetBtn.addEventListener('click', resetCanvas);
@@ -683,7 +726,7 @@ function bind(ctx: Element) {
             autoBtn.setAttribute('aria-pressed', 'false');
             return;
         }
-    
+        fitBounds();
         autoTimer = window.setTimeout(autoReduce, autoDelay);
     }
     autoBtn.addEventListener('click', () => {
@@ -698,7 +741,7 @@ function bind(ctx: Element) {
         const reversed = fastBtn.getAttribute('aria-pressed') === 'true';
         fastBtn.setAttribute('aria-pressed', (!reversed).toString());
 
-        autoDelay = reversed ? 1000 : 100;
+        autoDelay = reversed ? 1000 : 10;
     })
 
     const examples = expect(ctx.querySelector<HTMLSelectElement>(".examples"), "no examples select");
@@ -708,11 +751,27 @@ function bind(ctx: Element) {
         resizeInput();
     });
 
+    function fitBounds() {
+        const ctx = expect(graph.canvas.getContext("2d"));
+        const bounds = graph.bounds();
+
+        const zoom = Math.min(canvas.width / bounds[2], canvas.height / bounds[3]);
+        const center_x = bounds[0] + bounds[2] / 2;
+        const center_y = bounds[1] + bounds[3] / 2;
+
+        graph.target_center.set(center_x, center_y);
+        graph.target_zoom = zoom;
+        graph.tracking = true;
+    }
+
     requestAnimationFrame(() => graph.frame());
 }
 
-const context = document.getElementsByClassName("lc-sim")[0];
-bind(context);
+const context = document.getElementsByClassName("lc-sim");
+
+for (var i = 0; i < context.length; i++) {
+    bind(context[i]);
+}
 
 // (\n f x.n f(f x))(\f x.f(f(x)))
 

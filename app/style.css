@@ -210,8 +210,6 @@ code {
     }
 }
 textarea, select {
-    height: calc(var(--bt)*8);
-    
     padding: var(--bt);
     font-size: 20px;
     border: var(--bt) solid var(--color-border);
@@ -219,13 +217,16 @@ textarea, select {
     background: var(--color-bg);
     color: var(--color-hl1);
     margin-bottom: var(--bt);
+
+    height: calc(var(--bt)*8);
+    max-width: 800px;
 }
 textarea {
     font-family: 'Courier New', monospace;
     resize: vertical;
     box-sizing: border-box;
     min-height: 40px;
-    max-width: 800px;
+    
 }
 
 button {
