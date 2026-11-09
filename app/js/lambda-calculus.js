@@ -153,8 +153,10 @@ class AbsTerm extends Term {
         ctx.stroke();
         ctx.beginPath();
         ctx.strokeStyle = style.borderTopColor;
+        ctx.fillStyle = style.borderTopColor;
         ctx.lineWidth = 3;
         ctx.strokeText("λ", this.pos.x, this.pos.y + 2);
+        ctx.fillText("λ", this.pos.x, this.pos.y + 2);
     }
     copy(shares) {
         const copied_shr = new ShareTerm(this.shr.label, this.shr.pos.copy());
@@ -326,9 +328,7 @@ class VarTerm extends Term {
         }
         this.shr.drawTerm(this, ctx, style);
     }
-    // TODO: Fix copying if body is a single variable. it doesnt seem to copy at all
     copy(shares) {
-        console.log("VAR COPIED", this.shr.label);
         let s = shares.get(this.shr) || this.shr;
         return new VarTerm(s, this.pos.copy());
     }
@@ -360,8 +360,14 @@ class ShareTerm extends Term {
             ctx.stroke();
             ctx.beginPath();
             ctx.moveTo(start.x, start.y);
-            if (parent instanceof VarTerm)
+            if (parent instanceof VarTerm) {
                 ctx.arcTo(end.x, start.y, end.x, end.y - RADIUS, RADIUS);
+                ctx.lineTo(end.x, end.y - RADIUS);
+            }
+            else {
+                ctx.arcTo(start.x, end.y, end.x, end.y, RADIUS);
+                ctx.lineTo(end.x, end.y);
+            }
             ctx.lineTo(end.x, end.y - RADIUS);
             ctx.strokeStyle = style.color;
             ctx.lineWidth = 6;
@@ -375,9 +381,11 @@ class ShareTerm extends Term {
         ctx.strokeStyle = style.borderTopColor;
         ctx.stroke();
         ctx.beginPath();
+        ctx.fillStyle = style.color;
         ctx.strokeStyle = style.color;
         ctx.lineWidth = 3;
         ctx.strokeText(this.label, this.pos.x, this.pos.y);
+        ctx.fillText(this.label, this.pos.x, this.pos.y);
     }
     replace(from, to) {
         return null;
@@ -385,11 +393,12 @@ class ShareTerm extends Term {
 }
 class Graph {
     constructor(canvas) {
+        this.timer = null;
         this.canvas = canvas;
         this.root = null;
         this.tracking = false;
-        this.target_zoom = 1;
-        this.target_center = new Vec2(0, 0);
+        this.target_zoom = 6;
+        this.target_center = new Vec2(30, 30);
         this.dragging = false;
         this.drag_start = new Vec2(0, 0);
         this.drag_last = new Vec2(0, 0);
@@ -397,6 +406,7 @@ class Graph {
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.font = "40px 'TeX Gyre Adventor', sans-serif";
+        ctx.setTransform(this.target_zoom, 0, 0, this.target_zoom, this.target_center.x, this.target_center.y);
     }
     draw() {
         const styles = getComputedStyle(this.canvas);
@@ -406,6 +416,17 @@ class Graph {
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         ctx.restore();
         this.root?.drawTerm(null, ctx, styles);
+    }
+    start() {
+        if (this.timer)
+            return;
+        this.timer = requestAnimationFrame(() => this.frame());
+    }
+    stop() {
+        if (this.timer) {
+            cancelAnimationFrame(this.timer);
+            this.timer = null;
+        }
     }
     step() {
         this.root?.step(new Vec2(0, 0));
@@ -445,19 +466,28 @@ class Graph {
         const root = this.root?.reduce(pos) || null;
         if (root instanceof Term) {
             this.root = root;
-            this.setOffset();
-            return true;
         }
         if (root) {
             this.setOffset();
+            this.fitBounds();
             return true;
         }
         return false;
     }
     frame() {
+        this.timer = null;
         this.draw();
         this.step();
-        requestAnimationFrame(() => this.frame());
+        this.start();
+    }
+    fitBounds() {
+        const ctx = expect(this.canvas.getContext("2d"));
+        const bounds = this.bounds();
+        const zoom = Math.min(this.canvas.width / bounds[2], this.canvas.height / bounds[3]);
+        const center_x = bounds[0] + bounds[2] / 2;
+        const center_y = bounds[1] + bounds[3] / 2;
+        this.target_center.set(center_x, center_y);
+        this.target_zoom = zoom;
     }
     pageToCanvas(e) {
         const rect = this.canvas.getBoundingClientRect();
@@ -473,6 +503,14 @@ class Graph {
         return new Vec2(w.x, w.y);
     }
 }
+const SHORTHANDS = {
+    "TRUE": "\\t f.t",
+    "FALSE": "\\t f.f",
+    "NOT": "\\b t f.b f t",
+    "AND": "\\a b.a b a",
+    "OR": "\\a b.a a b",
+    "XOR": "\\a b.a (NOT b) b"
+};
 class Parser {
     constructor() {
         this.pos = 0;
@@ -485,7 +523,10 @@ class Parser {
         return this.parseApp();
     }
     isVar(t) {
-        return t !== undefined && /^[A-Za-z']+$/.test(t);
+        return t !== undefined && /^[a-z']+$/.test(t);
+    }
+    isShorthand(t) {
+        return t !== undefined && /^[A-Z']+$/.test(t);
     }
     isLambda(t) {
         return t === "\\" || t === "λ";
@@ -503,6 +544,14 @@ class Parser {
             const token = this.tokens[this.pos];
             if (this.isVar(token)) {
                 right = this.parseVar();
+            }
+            else if (this.isShorthand(token)) {
+                this.pop(); // Spend the shorthand
+                if (SHORTHANDS[token] === undefined) {
+                    throw new Error("Shorthand is not defined: " + token);
+                }
+                const inner = new Parser();
+                right = inner.parse(SHORTHANDS[token]);
             }
             else if (this.isLambda(token)) {
                 this.pop(); // Spend the lambda
@@ -561,6 +610,7 @@ class Parser {
         return new ShareTerm(token);
     }
 }
+const visibility = new Map();
 function bind(ctx) {
     const canvas = expect(ctx.querySelector("canvas"));
     const graph = new Graph(canvas);
@@ -597,6 +647,7 @@ function bind(ctx) {
         ctx.translate(diff.x / zoom, diff.y / zoom);
     });
     c.addEventListener("wheel", e => {
+        graph.tracking = false;
         e.preventDefault();
         const ctx = expect(graph.canvas.getContext("2d"));
         const scale = 1 + Math.sign(-e.deltaY) / 10;
@@ -607,15 +658,32 @@ function bind(ctx) {
         ctx.translate(-w.x, -w.y);
     }, { passive: false });
     const input = expect(ctx.querySelector("textarea"), "no input element");
-    const resetBtn = expect(ctx.querySelector(".buttons .reset"), "no button element");
+    const resetBtnElem = ctx.querySelector(".buttons .reset");
+    const errorLine = expect(ctx.querySelector(".error"), "no error line");
     function resetCanvas() {
         const text = input.value;
         const parser = new Parser();
-        graph.root = parser.parse(text);
-        graph.setOffset();
-        fitBounds();
+        try {
+            graph.root = parser.parse(text);
+            graph.setOffset();
+            graph.fitBounds();
+            graph.tracking = true;
+            errorLine.textContent = "";
+        }
+        catch (e) {
+            errorLine.textContent = e;
+        }
     }
-    resetBtn.addEventListener('click', resetCanvas);
+    if (resetBtnElem) {
+        const resetBtn = resetBtnElem;
+        resetBtn.addEventListener('click', resetCanvas);
+    }
+    input.addEventListener("keydown", e => {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            resetCanvas();
+        }
+    });
     resetCanvas();
     function resizeInput() {
         input.style.height = "0px"; // reset so it can also shrink
@@ -625,48 +693,72 @@ function bind(ctx) {
     resizeInput();
     let autoTimer = null;
     let autoDelay = 1000;
-    const autoBtn = expect(ctx.querySelector(".buttons .auto"), "no button element");
-    function autoReduce() {
-        if (autoBtn.getAttribute('aria-pressed') !== 'true')
-            return;
-        if (!graph.reduce(null)) {
-            autoBtn.setAttribute('aria-pressed', 'false');
-            return;
+    const autoBtnElem = ctx.querySelector(".buttons .auto");
+    if (autoBtnElem) {
+        const autoBtn = autoBtnElem; // Hack to prevent the typescript type checker from complaining
+        function autoReduce() {
+            if (autoBtn.getAttribute('aria-pressed') !== 'true')
+                return;
+            if (!graph.reduce(null)) {
+                autoBtn.setAttribute('aria-pressed', 'false');
+                return;
+            }
+            graph.fitBounds();
+            autoTimer = window.setTimeout(autoReduce, autoDelay);
         }
-        fitBounds();
-        autoTimer = window.setTimeout(autoReduce, autoDelay);
+        autoBtn.addEventListener('click', () => {
+            const reversed = autoBtn.getAttribute('aria-pressed') === 'true';
+            autoBtn.setAttribute('aria-pressed', (!reversed).toString());
+            if (!reversed) {
+                graph.tracking = true;
+                autoReduce();
+            }
+        });
     }
-    autoBtn.addEventListener('click', () => {
-        const reversed = autoBtn.getAttribute('aria-pressed') === 'true';
-        autoBtn.setAttribute('aria-pressed', (!reversed).toString());
-        autoReduce();
-    });
-    const fastBtn = expect(ctx.querySelector(".buttons .fast"), "no button element");
-    fastBtn.addEventListener('click', () => {
-        const reversed = fastBtn.getAttribute('aria-pressed') === 'true';
-        fastBtn.setAttribute('aria-pressed', (!reversed).toString());
-        autoDelay = reversed ? 1000 : 10;
-    });
+    const fastBtnElem = ctx.querySelector(".buttons .fast");
+    if (fastBtnElem) {
+        const fastBtn = fastBtnElem;
+        fastBtn.addEventListener('click', () => {
+            const reversed = fastBtn.getAttribute('aria-pressed') === 'true';
+            fastBtn.setAttribute('aria-pressed', (!reversed).toString());
+            autoDelay = reversed ? 1000 : 10;
+        });
+    }
     const examples = expect(ctx.querySelector(".examples"), "no examples select");
     examples.addEventListener("change", () => {
         input.value = examples.value;
         resetCanvas();
         resizeInput();
     });
-    function fitBounds() {
-        const ctx = expect(graph.canvas.getContext("2d"));
-        const bounds = graph.bounds();
-        const zoom = Math.min(canvas.width / bounds[2], canvas.height / bounds[3]);
-        const center_x = bounds[0] + bounds[2] / 2;
-        const center_y = bounds[1] + bounds[3] / 2;
-        graph.target_center.set(center_x, center_y);
-        graph.target_zoom = zoom;
-        graph.tracking = true;
-    }
-    requestAnimationFrame(() => graph.frame());
+    watch(graph);
 }
 const context = document.getElementsByClassName("lc-sim");
 for (var i = 0; i < context.length; i++) {
     bind(context[i]);
 }
-// (\n f x.n f(f x))(\f x.f(f(x)))
+function updateActiveCanvi() {
+    let best = null;
+    let bestRatio = 0;
+    for (const [graph, vis] of visibility) {
+        if (vis > bestRatio) {
+            best = graph;
+            bestRatio = vis;
+        }
+    }
+    for (const graph of visibility.keys()) {
+        if (graph === best)
+            graph.start();
+        else
+            graph.stop();
+    }
+}
+function watch(graph) {
+    visibility.set(graph, 0);
+    const obv = new IntersectionObserver(entries => {
+        for (const entry of entries) {
+            visibility.set(graph, entry.intersectionRatio);
+        }
+        updateActiveCanvi();
+    }, { threshold: [0, 0.25, 0.5, 0.75, 1.0] });
+    obv.observe(graph.canvas);
+}

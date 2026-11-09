@@ -9,6 +9,7 @@
 html {
     --color-bg: white;
     --color-border: black;
+    --color-disabled: gray;
     --color-hl1: orangered;
     --color-hl2: orange;
     --color-side: rgb(255, 215, 200);
@@ -17,6 +18,7 @@ html {
 html[theme-mode='dark'] {
     --color-bg: rgb(10, 5, 0);
     --color-border: lightgray;
+    --color-disabled: gray;
     --color-hl1: rgb(255, 165, 0);
     --color-hl2: orangered;
     --color-side: rgb(70, 45, 0);
@@ -156,6 +158,9 @@ html[theme-mode="dark"] .dark-mode-toggle::before {
     }
     ol {
         padding-left: calc(var(--bt)*3);
+        li {
+            margin: calc(var(--bt)*2) 0;
+        }
     }
     ul {
         padding-left: calc(var(--bt)*3);
@@ -218,7 +223,7 @@ textarea, select {
     color: var(--color-hl1);
     margin-bottom: var(--bt);
 
-    height: calc(var(--bt)*8);
+    height: calc(var(--bt)*10);
     max-width: 800px;
 }
 textarea {
@@ -231,8 +236,8 @@ textarea {
 
 button {
     font-size: 20px;
-    padding: var(--bt);
-    height: calc(var(--bt)*8);
+    padding: 0;
+    height: calc(var(--bt)*10);
     width: var(--btn-width, 100px);
     border: var(--bt) solid var(--color-border);
     border-radius: calc(var(--bt)*2);
@@ -240,6 +245,7 @@ button {
     color: var(--color-hl1);
     cursor: pointer;
     margin-bottom: var(--bt);
+    flex-shrink: 0;
 }
 button:hover {
     color: var(--color-hl2);
@@ -255,8 +261,10 @@ button[aria-pressed="true"]:hover {
 
 .buttons {
     display: flex;
+    flex-wrap: wrap;
     align-items: flex-start;
     gap: var(--bt);
+    margin-right: 40px;
 }
 
 /* Right now only in lambda-calculus.phtml */
@@ -271,6 +279,15 @@ button[aria-pressed="true"]:hover {
         border: var(--bt) solid var(--color-border);
         border-radius: calc(var(--bt)*2);
         max-width: 800px;
+        margin-right: 40px;
+        touch-action: none;
+    }
+    textarea {
+        margin-right: 40px;
+    }
+    textarea:read-only {
+        resize: none;
+        color: var(--color-disabled);
     }
 }
 

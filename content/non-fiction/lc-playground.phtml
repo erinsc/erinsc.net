@@ -1,0 +1,26 @@
+<div class="paragraph" style="--accent: var(--color-hl1);">
+    <h2>lambda calculus playground</h2>
+    <p>here you can mess around with a pretty visualizer ! if you wish to learn what the lambda calculus is, <a href=<?= page_url('non-fiction/lambda-calculus')?> >click&nbsp;here</a>.</p>
+    <p><b>abstractions</b> have their bound variable drawn only once. all instances of it link back to the same node so its clear to see what goes where, and lets us ignore alpha reduction.</p>
+    <p><b>applications</b> are drawn orange if they can be reduced, you can do so by clicking on them. you can also press the <b>auto</b> button to let the visualizer auto-reduce the top-most one once a second. <b>ffwd</b> speeds things up by 10.</p>
+
+    <div class="lc-sim">
+        <div class="buttons">
+            <button class="reset">reset</button>
+            <button class="auto">auto</button>
+            <button class="fast">ffwd</button>
+            <select class="examples">
+                <option value="" selected disabled>pick an example</option>
+                <option value="\x.x">identity</option>
+                <option value="(\n f x.n f (f x))(\f x.f(f(f(x))))">increment 3</option>
+                <option value="(\a b f x.a f (b f x))((\f x.f(f(x))))(\f x.f(f(f(f(f(x))))))">2 + 5</option>
+                <option value="(\a b f.a (b f))((\f x.f(f(f(x)))))((\f x.f(f(f(f(x))))))">3 * 4</option>
+                <option value="(\a b.b a) ((\f x.f(f(f(f(x)))))) ((\f x.f(f(f(x)))))">4^3</option>
+            </select>
+        </div>
+        <textarea>(\f x.f(f(f x))) NOT FALSE</textarea>
+        <p class="error"></p>
+        <canvas width="1536" height="1024"></canvas>
+    </div>
+</div>
+<script src="<?= function_url('js/lambda-calculus.js') ?>"></script>

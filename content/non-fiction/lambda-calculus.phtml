@@ -4,45 +4,86 @@
         <h3>hi there ! this sections is currently unfinished, you'll have to bear with me as i work on it.</h3>
     </div>
     <br>
-    <p>the lambda calculus. people always act like its some weird scary thing but idk it feels really simple. ill get you through it.</p>
-    <p>first some boring background. the lambda calculus is a "theoretical computing model", meaning the purpose of it is to represent the idea of calculating something, as a calculation itself. similar to the turing machine you might've heard of. the idea was created by one alonzo church in the 1930s. he was actually alan turing's doctoral advisor, and while both of the models are meant to do the same thing they're basically oposites. its really a luigi waluigi situation lol.</p>
+    <p>the lambda calculus has been one of my favourite topics for a few years now, ever since an elective college class. one might call it my hyperfixation, one might also say i talk about it too much, and im gonna talk about it more i really like it. if you'll allow me, i'd like to introduce this computational model to you so you can enjoy it with me :3</p>
 </div>
 <div class="paragraph">
-    <h3>the structure</h3>
-    <p>every lambda calculus expression representsa calculation, and is built up from a tree of terms. there's 3 types of terms:</p>
+    <h2>the structure</h2>
+    <p>every lambda calculus term is built like a binary tree, with three types of nodes:</p>
     <ol>
-        <li><b>an application</b> - drawn as a circle</li>
-        <li><b>an abstraction</b> - drawn as the greek letter λ</li>
-        <li><b>a variable</b> - drawn as some identifier</li>
+        <li>
+            <b>applications <code>(_ _)</code></b><br>they always have two kids, the left one we call its <b>function</b>, the right one its <b>argument</b>
+        </li><li>
+            <b>abstractions <code>λ_._</code></b><br> they also have two kids, the left one is its <b>bound variable</b>, and is always a variable, the right is its <b>body</b>
+        </li><li>
+            <b>variables <code>x</code></b><br> these are always a leaf, and have an identifier of some sort, usually a lowercase letter.
+        </li>
     </ol>
-    <p><b>abstractions</b> represent functions. they always take one input in, which is a term, and return another term. simple. their right child is the body of the function, while the left child is a <b>bound variable</b>. when we run this function, we find all variables inside the body with the same identifier as the bound variable</p>
-    <p>now, i know that sounded like a lot but if you've worked with functions in math it's really easy. if you take a function like <code>f(x) := x^2 + 6x - 6</code>. if we "run" the function with some argument, lets say <code>7</code>, we first replace all the bound variables <code>x</code> with it, so we get <code>f(7) = 7^2 + 6*7 - 6</code>.  after that we can simplify it and get a result, but for now we just care about the variable replacing step.</p>
-    <p><b>applications</b> represent that running of a function. when we wrote <code>f(7)</code> we were actually applying the argument <code>7</code> onto our function <code>f</code>.</p>
-    <p></p>
-
-</div>
-<div class="paragraph">
-    <h3>playground</h3>
-    <p>here you can mess around with a pretty visualizer !</p>
-    <p><b>abstractions</b> have their bound variable drawn only once. all instances of it link back to the same node so its clear to see what goes where, and lets us ignore alpha reduction.</p>
-    <p><b>applications</b> are drawn orange if they can be reduced, you can do so by clicking on them. you can also press the <b>auto</b> button to let the visualizer auto-reduce the top-most one once a second. <b>ffwd</b> speeds things up by 10.</p>
-
-    <div class="lc-sim" id="s1">
+    <p>usually lambda terms are written down using text, but i think its pretty unintuitive at first so i've written a nice visualizer for you, you can build up a little intuition for how terms look, and how they're written down i hope. also i made it link all the bound variables together cause it looks pretty.</p>
+    <p>oh also, because the terms get really big usually, there's some shorthand you should know. <code>λx.λy.M</code> can be shortened to <code>λx y.M</code>, note the space between the variables. <code>((X Y) Z)</code>can be shortened to just <code>X Y Z</code> - application is <it>left-associative</it> - and ofcourse we omit the brackets if they're obvious. oh also you can use <code>\</code> instead of <code>λ</code></p>
+    <p>play around with this a bit, then continue :3</p>
+    <div class="lc-sim">
         <div class="buttons">
-            <button class="reset">reset</button>
-            <button class="auto">auto</button>
-            <button class="fast">ffwd</button>
+            <select class="examples">
+                <option value="" selected disabled>pick a term to visualize</option>
+                <option value="λx.x">λx.x</option>
+                <option value="λx y.x">λx y.x</option>
+                <option value="λa b.a b a">λx y.x x y</option>
+                <option value="(λc.c c) (λd.d)">(λc.c c) (λd.d)</option>
+                <option value="(λn f x.n f (f x)) (λf x.x)">(λn f x.n f (f x)) (λf x.x)</option>
+            </select>
         </div>
-        <select class="examples">
-            <option value="" selected disabled>...</option>
-            <option value="\x.x">identity</option>
-            <option value="(\n f x.n f (f x))(\f x.f(f(f(x))))">increment 3</option>
-            <option value="(\a b f x.a f (b f x))((\f x.f(f(x))))(\f x.f(f(f(f(f(x))))))">2 + 5</option>
-            <option value="(\a b f.a (b f))((\f x.f(f(f(x)))))((\f x.f(f(f(f(x))))))">3 * 4</option>
-            <option value="(\a b.b a) ((\f x.f(f(f(f(x)))))) ((\f x.f(f(f(x)))))">4^3</option>
-        </select>
-        <textarea id="s1">(\n f x.n f(f x))(\f x.f(f(x)))</textarea>
+        <textarea readonly>λt f.t</textarea>
+        <p class="error"></p>
         <canvas width="1536" height="1024"></canvas>
     </div>
 </div>
+<div class="paragraph">
+    <h2>beta reduction</h2>
+    <p>you might've noticed that some of the applications visualized are filled with orange. you might've clicked them too, which made the term change suddenly. what you've just done is called <b>beta reduction</b> ! this represents applying function, basically the same as you're used to in math: if you have some function <code>f(x) := x^2 - x + 6</code>, and you evaluate it on input <code>3</code>, you get <code>f(3)</code> = <code>3^2 - 3 + 6</code>, all the x's got replaced with a copy of the argument.</p>
+    <p>beta reduction works the exact same way. if you have an application, whose left kid is an abstraction, <code>(\x.B) A</code>, you can reduce it into <code>B[x/A]</code>, i.e. a version of B where all x's are replaced with A. its called <it>beta</it> reduction, because there is another one, called <it>alpha</it> reduction, that one is about renaming variables so that there's no duplicates. that also makes sense, you dont want a function like <code>f(x, x) = 2x - 3x</code>, you don't know which <code>x</code> is which.</p>
+    <br>
+    <p>look back at the example with c's and d's, and think about what both of the terms are doing. <code>λc.c c</code> takes in some argument, creates two copies, and applies one to the other. <code>λd. d</code> simply takes in an argument and simply returns it. so, what happens when you apply them ? simple, two copies of the one with d's gets created: <code>(λd.d) (λd.d)</code>. apply again, one of them eats the other, returns it back unchanged, we're left with <code>λd.d</code>. if we were doing alpha reduction, we would rename one of the <code>d</code>'s to something else, lets say </code>e</code>, so we would have <code>(λd.d) (λe.e)</code>, but our visualizer doesn't need it</p>
+</div>
+<div class="paragraph">
+    <h2>boolean logic</h2>
+    <p>i know you're getting bored, but we're now done with the theory, so let's do some actual work !</p>
+    <p>we want to represent boolean logic somehow, so we need to define booleans true and false. because there's no real way to have "data" (yet), instead of thinking about what a boolean <it>is</it>, think about what it <it>does</it>. well usually, its used to decide between two options, <code>if b: x, else y</code>, so we can represent a boolean as a function that takes in two options, and returns one or the other, depending on if its true or false. <code>TRUE</code> := <code>λt f.t</code>, and <code>FALSE</code> := <code>λt f.f</code>. note that these shorthands we're defining are really just shorthand.</p>
+    <p>next we want some logic gates. a <code>NOT</code> is the easiest, it returns whatever the oposite of the input is. we can make the gate like a function that takes a boolean, and gives it false, then true. <code>NOT (long version)</code> = <code>λb.b FALSE TRUE</code> = <code>λb.b (λt f.f) (λt f.t)</code>. we can simplify this a bit, instead of returning whole new copy of the boolean, we can construct it: <code>NOT</code> := <code>\b.\t f.b f t</code>. the input <code>b</code> will return one of the other variables, and create either a true or false for us !</p>
+    <p>an <code>AND</code> gate is just as simple. it takes two booleans. if the first is false, return false. otherwise return the first boolean ! <code>AND</code> := <code>λa b.a b (λt f.f)</code>. we can actually simplify this a bit; if <code>a</code> is false, we don't have to return a different false, we can just return <code>a</code> itself: <code>AND</code> := <code>λa b.a b a</code>.</p>
+    <p>go play around with it a bit ! this time i'll let you type your own expressions. remember <code>\</code> is the same as <code>λ</code>.</p>
+    <div class="lc-sim">
+        <div class="buttons">
+            <select class="examples">
+                <option value="" selected disabled>pick a term to visualize</option>
+                <option value="λt f.t">TRUE</option>
+                <option value="λt f.f">FALSE</option>
+                <option value="λb t f.b f t">NOT</option>
+                <option value="(λb t f.b f t) (λt f.f)">NOT FALSE</option>
+                <option value="(λa b.a b a) (λt f.t) (λt f.f)">AND TRUE FALSE</option>
+                <option value="λa b.NOT (AND (NOT a) (NOT b))">OR := λa b.NOT (AND (NOT a) (NOT b))</option>
+                <option value="λa b.a a b">simpler OR</option>
+                <option value="(λa b.a a b) (λt f.t) (λt f.f)">OR TRUE FALSE</option>
+                <option value="λa b.AND (OR a b) (NOT (AND a b))">XOR := λa b.AND (OR a b) (NOT (AND a b))</option>
+                <option value="λa b.a (NOT b) b">simpler XOR</option>
+            </select>
+            <button class="reset">reset</button>
+        </div>
+        <textarea>TRUE</textarea>
+        <p class="error"></p>
+        <canvas width="1536" height="1024"></canvas>
+    </div>
+    <p>i took the liberty of defining <code>OR</code> and <code>XOR</code>, both using composition, and making them directly. obviously the direct versions are smaller, and in some way "better", but you shouldn't think about it like that, this system isn't meant to be efficient.</p>
+</div>
+<div class="paragraph" style="--accent: var(--color-hl1);"">
+        <h3>sorry, im still working the next sections x] you'll have to give me a bit more time</h3>
+    </div>
+<div class="paragraph">
+    <h2>numbers</h2>
+    <p>church numerals, arithmetic, pairs, a hint at integers and fractions, lists</p>
+</div>
+<div class="paragraph">
+    <h2>fixed point theorem</h2>
+    <p>encoding terms, fixed point theorem, its significance and proof, connection to halting problem</p>
+</div>
+
 <script src="<?= function_url('js/lambda-calculus.js') ?>"></script>
