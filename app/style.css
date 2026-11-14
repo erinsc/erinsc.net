@@ -182,6 +182,7 @@ code {
   border-radius: 3px;
   font-family: "Courier New", monospace;
   padding: 0 3px;
+  white-space: nowrap
 }
 
 .gallery {

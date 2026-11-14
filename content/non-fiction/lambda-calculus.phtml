@@ -1,9 +1,5 @@
 <div class="paragraph" style="--accent: var(--color-hl1);">
     <h2>the lambda calculus</h2>
-    <div class="paragraph" style="--accent: var(--color-hl1);">
-        <h3>hi there ! this sections is currently unfinished, you'll have to bear with me as i work on it.</h3>
-    </div>
-    <br>
     <p>the lambda calculus has been one of my favourite topics for a few years now, ever since an elective college class. one might call it my hyperfixation, one might also say i talk about it too much, and im gonna talk about it more i really like it. if you'll allow me, i'd like to introduce this computational model to you so you can enjoy it with me :3</p>
 </div>
 <div class="paragraph">
@@ -67,23 +63,63 @@
                 <option value="λa b.a (NOT b) b">simpler XOR</option>
             </select>
             <button class="reset">reset</button>
+            <button class="auto">auto</button>
         </div>
         <textarea>TRUE</textarea>
         <p class="error"></p>
         <canvas width="1536" height="1024"></canvas>
     </div>
+    <br>
     <p>i took the liberty of defining <code>OR</code> and <code>XOR</code>, both using composition, and making them directly. obviously the direct versions are smaller, and in some way "better", but you shouldn't think about it like that, this system isn't meant to be efficient.</p>
 </div>
-<div class="paragraph" style="--accent: var(--color-hl1);"">
-        <h3>sorry, im still working the next sections x] you'll have to give me a bit more time</h3>
-    </div>
+<div class="paragraph">
+    <h3>pairs and lists</h3>
+    <p>i'll also quickly mention, booleans let us create pairs. if we create a term like <code>λb.b A B</code> then passing in a boolean we can get out either the first, or second element of the pair. we can also build arbitrarily long lists by nesting pairs. a list is a pair like <code>(element, rest-of-list)</code>, though there isn't a way to tell how long it is. not without some modifications, anyway.</p>
+</div>
 <div class="paragraph">
     <h2>numbers</h2>
-    <p>church numerals, arithmetic, pairs, a hint at integers and fractions, lists</p>
+    <p>let's do some numbers ! like we've seen with booleans, we need to think about what a number <it>does</it>, not just what it is. usually, natural numbers are used in loops to indicate how many times they should run. or in other words, how many times they should apply a function. so, we'll say that a number <code>N</code> takes a function and an argument, and applies the function N times in a row before returning the output: <code>0 := λf x.x</code>, <code>1 := λf x.f x</code>, <code>2 := λf x.f(f x)</code>, <code>3 := λf x.f(f(f x))</code> etc.</p>
+    <p>right. how do we define adition. well imagine we figure out how to increment a number, then to add <code>X</code> to <code>Y</code>we could simply do <code>X INC Y</code>, i.e. increment <code>Y</code> <code>X</code> times ! incrementing itself isnt too hard, we'll make it how we did the <code>NOT</code> function, where it builds it from the inside: <code>INC := λn.λf x.n f (f x)</code>. the argument it'll give to the number will have <code>f</code> pre-applied once, so as a result it'll be applied n+1 times.</p>
+    <p>we already know how to add, increment repeatedly: <code>ADD</code> := <code>λa b.a INC b</code>. it doesnt take much to figure out how to multiply: add repeatedly ! <code>MULT := λa b.a (ADD b) 0</code>, and exponents will be multiplying repeatedly ofcourse, <code>EXP := λa b.a (MULT b) 1</code>. there are smaller definitions of these, <code>MULT</code> can be defined as <code>λa b.λf x.a(b f)x</code>exponents as simply as <code>λa b.b a</code></p>
+</div>
+<div class="paragraph">
+    <h2>subtraction</h2>
+    <p>i want to give this its own sub-section because its pretty complicated and the whole point is that it should't.</p>
+    <p>we start with a simple idea: if we give a number n the function <code>INC</code> and starting argument <code>0</code>, it will increment it n times and return back itself, simple. if we want the result to be one lower, we want one of those increments to fail, or be consumed somehow. we could try to come up with some kind of starting term, call it <code>P</code>, such that <code>INC P</code> would reduce into a <code>0</code>. this sounds good at first, but this isn't really doable with our definition of <code>INC</code>.</p>
+    <p>instead of directly giving the argument to <code>INC</code>, we'll wrap it in another function, that'll give <code>INC</code> to the argument itself, so it can decide what to do with it ! <code>λn.n INC</code>. next, we'll define <code>P</code> as a term that takes this <code>INC</code>, ignores it, and returns 0, just like we wanted: <code>P := λg.0</code>, now <code>(λn.n INC) P</code> reduces to <code>0</code>.</p>
+    <p>small issue, <code>λn.n INC</code> doesn't expect a number, it expects a term that takes <code>INC</code> and does something with it, so we actually want <code>P</code> to reduce to something like <code>λg.g 0</code>, or more generally we want the output to reduce to <code>λg.g N</code> for some <code>N</code> when it runs. that's a simple fix, and finally it gives us our proper term for <code>f</code>: <code>WRAP</code> := <code>λn.λg.g (n INC)</code>. ofcourse we also want to convert these special terms back into numbers at the end, we can simply pass <code>λi.i</code> into them. the special terms will take it, give it to their number and it will simply be returned. if we give it to <code>P</code> - which will happen only if we try to decrementz zero - it ignores the input and returns zero, so we're basically saying that the predecesor of zero is zero. which is... fine. it's fine, its certainly better than the term breaking. we like that the output is a number. we've then sucessfuly defined decrementing as <code>WRAP P (λi.i)</code>. or, if we write it out a bit, <code>DEC</code> := <code>λn.n (λh.λg.g (h INC)) (λg.0) (λi.i)</code>.</p>
+    <p>like with multiplication and exponents before, this can be simplified even more. particularly we can replace <code>INC</code> and <code>0</code> with <code>f</code> and <code>x</code>, since the structure we get out is already basically on point, but its not necesarry, if we wanted efficient math we'd be working with C++ haha.</p>
+    <div class="lc-sim">
+        <div class="buttons">
+            <select class="examples">
+                <option value="" selected disabled>pick a term to visualize</option>
+                <option value="λf x.x">0</option>
+                <option value="λf x.f x">1</option>
+                <option value="λf x.f(f(f x))">3</option>
+                <option value="λn f x.n f(f x)">INC</option>
+                <option value="(λn.λf x.n f (f x)) 3">INC 3</option>
+                <option value="(λa b.a INC b) 3 5">ADD 3 5</option>
+                <option value="(λa b.a (ADD b) 0) 3 4">MULT 3 4</option>
+                <option value="(λa b.b (MULT a) 1) 2 4">EXP 2 4</option>
+                <option value="(λn.n (λh.λg.g (h INC)) (λg.0) (λi.i)) 3">DEC 3</option>
+                <option value="(λa b.b DEC a) 5 3">SUB 5 3</option>
+            </select>
+            <button class="reset">reset</button>
+            <button class="auto">auto</button>
+            <button class="fast">ffwd</button>
+        </div>
+        <textarea>(λa b.a INC b) 3 5</textarea>
+        <p class="error"></p>
+        <canvas width="1536" height="1024"></canvas>
+    </div>
+    
+</div>
+<div class="paragraph" style="--accent: var(--color-hl1);"">
+    <h3>sorry, im still working the next sections x] you'll have to give me a bit more time</h3>
 </div>
 <div class="paragraph">
     <h2>fixed point theorem</h2>
     <p>encoding terms, fixed point theorem, its significance and proof, connection to halting problem</p>
 </div>
 
-<script src="<?= function_url('js/lambda-calculus.js') ?>"></script>
+<script type="module" src="<?= function_url('js/lambda-calculus.js') ?>"></script>
